@@ -5,23 +5,23 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first to leverage Docker caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy pyproject.toml and poetry.lock for dependency installation
+COPY pyproject.toml ./
 
-# Install additional dependencies required for Railway
-RUN pip install --no-cache-dir \
-    uvicorn \
-    gunicorn \
-    asyncpg \
-    python-dotenv
+# Install Poetry
+RUN pip install --no-cache-dir poetry
+
+# Install dependencies using Poetry
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi --without dev
 
 # Copy application code
 COPY . .
 
-# Health check for Railway
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
@@ -33,8 +33,8 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
-# Command to run both bots (through supervisor or script)
-CMD ["sh", "-c", "python -m src.main & python -m src.chat_bot.main & wait"]
+# Command to run the chat bot
+CMD ["python", "-m", "src.main"]
 
 # Expose port for Health check
 EXPOSE 8080 
