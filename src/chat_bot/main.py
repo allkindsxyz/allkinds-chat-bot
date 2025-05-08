@@ -252,6 +252,56 @@ async def setup_webhook_server():
             
         app.router.add_get("/test", test_route_handler)
         
+        # Add database test route
+        async def db_test_handler(request):
+            """Test database connectivity."""
+            logger.info(f"[DB_TEST] Database test accessed from {request.remote}")
+            result = {"status": "unknown", "details": {}}
+            
+            try:
+                # Import database modules
+                from sqlalchemy import text
+                from src.db.base import get_async_engine, get_async_session
+                
+                # Test database connectivity with basic query
+                try:
+                    engine = get_async_engine()
+                    result["details"]["engine_created"] = True
+                    
+                    # Try to create a session
+                    session_maker = get_async_session()
+                    result["details"]["session_maker_created"] = True
+                    
+                    # Try a simple query
+                    async with session_maker() as session:
+                        query_result = await session.execute(text("SELECT 1"))
+                        test_value = query_result.scalar()
+                        result["details"]["query_executed"] = True
+                        result["details"]["query_result"] = test_value
+                        
+                    # Overall status
+                    result["status"] = "ok"
+                    logger.info("[DB_TEST] Database connection successful")
+                    
+                except Exception as db_error:
+                    logger.error(f"[DB_TEST] Database connectivity error: {db_error}")
+                    result["status"] = "error"
+                    result["error"] = str(db_error)
+                    result["details"]["error_type"] = type(db_error).__name__
+                    
+                    # Get additional error info
+                    import traceback
+                    result["details"]["traceback"] = traceback.format_exc()
+            except Exception as outer_error:
+                logger.error(f"[DB_TEST] Outer error in database test: {outer_error}")
+                result["status"] = "error"
+                result["error"] = str(outer_error)
+                
+            return web.Response(text=json.dumps(result, default=str), 
+                               content_type='application/json')
+        
+        app.router.add_get("/db_test", db_test_handler)
+        
         # Log all routes for debugging
         logger.info("Registered routes:")
         for route in app.router.routes():

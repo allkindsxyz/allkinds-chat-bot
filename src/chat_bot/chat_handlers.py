@@ -1070,4 +1070,18 @@ async def handle_start_text(message: Message):
         logger.info(f"[START_TEXT] Sent welcome message to user {message.from_user.id}")
     except Exception as e:
         logger.exception(f"[START_TEXT] Error in fallback start handler: {e}")
-        await message.answer("Welcome to Allkinds Chat Bot! Type /help for assistance.") 
+        await message.answer("Welcome to Allkinds Chat Bot! Type /help for assistance.")
+
+@router.message(Command("ping"))
+async def handle_ping(message: Message):
+    """Simple ping command that doesn't require database access."""
+    try:
+        logger.info(f"[PING] Received ping command from user {message.from_user.id}")
+        await message.answer("Pong! The bot is running.")
+        logger.info(f"[PING] Responded to ping from user {message.from_user.id}")
+    except Exception as e:
+        logger.exception(f"[PING] Error in ping handler: {e}")
+        try:
+            await message.answer("Error processing ping command. Please try again later.")
+        except Exception as inner_e:
+            logger.error(f"[PING] Even basic response failed: {inner_e}") 
