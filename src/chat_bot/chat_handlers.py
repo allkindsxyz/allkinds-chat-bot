@@ -1051,4 +1051,23 @@ async def handle_help(message: Message):
         "If you don't have any matches yet, head to @AllkindsTeamBot to find people with shared values!"
     )
     
-    await message.answer(help_text, parse_mode="HTML") 
+    await message.answer(help_text, parse_mode="HTML")
+
+@router.message(F.text == "/start")
+async def handle_start_text(message: Message):
+    """Direct text handler for /start command as a fallback."""
+    try:
+        logger.info(f"[START_TEXT] Direct text handler for /start command from user {message.from_user.id}")
+        
+        await message.answer(
+            "Welcome to the Allkinds Chat Bot! 👋\n\n"
+            "This bot lets you chat anonymously with your matches from the Allkinds main bot.\n\n"
+            "To get started:\n"
+            "1. Find a match in @AllkindsTeamBot\n"
+            "2. Once matched, you'll receive a link to chat here\n\n"
+            "Need help? Type /help for assistance."
+        )
+        logger.info(f"[START_TEXT] Sent welcome message to user {message.from_user.id}")
+    except Exception as e:
+        logger.exception(f"[START_TEXT] Error in fallback start handler: {e}")
+        await message.answer("Welcome to Allkinds Chat Bot! Type /help for assistance.") 
