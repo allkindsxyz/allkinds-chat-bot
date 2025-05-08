@@ -1068,6 +1068,9 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
         chat_id = message.chat.id
         now = datetime.now()
         
+        # Log all start command attempts 
+        logger.info(f"[START_TEXT] Received direct /start command from user {user_id} in chat {chat_id}")
+        
         if chat_id in last_message_time:
             last_time = last_message_time[chat_id]
             time_since_last = now - last_time
@@ -1075,7 +1078,8 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
                 logger.info(f"[START_TEXT] Throttling for chat {chat_id}: sent message {time_since_last.total_seconds():.1f}s ago")
                 return  # Just silently return without sending a message
         
-        logger.info(f"[START_TEXT] Direct text handler for /start command from user {message.from_user.id}")
+        # Update last message time right away to prevent duplicate processing
+        last_message_time[chat_id] = now
         
         # Send immediate welcome message to improve perceived responsiveness
         immediate_message = await message.answer(
@@ -1084,17 +1088,33 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
             "Just a moment while I check your information..."
         )
         
-        # Update last message time
-        last_message_time[chat_id] = now
-        
-        # If we don't have a session, we're done
+        # If we don't have a session, send a meaningful response instead of failing silently
         if not session:
-            logger.info(f"[START_TEXT] No session available for user {message.from_user.id}")
+            logger.info(f"[START_TEXT] No database session available for user {message.from_user.id}")
+            await message.answer(
+                "Welcome to Allkinds Chat Bot!\n\n"
+                "We're experiencing temporary database connection issues. Please try again later or use /help for more information."
+            )
             return
         
         try:    
+            # Test database connection before proceeding
+            try:
+                from sqlalchemy import text
+                import asyncio
+                # Quick test with timeout
+                await asyncio.wait_for(session.execute(text("SELECT 1")), timeout=2.0)
+            except Exception as test_error:
+                logger.error(f"[START_TEXT] Database connection test failed: {test_error}")
+                await message.answer(
+                    "Welcome to Allkinds Chat Bot!\n\n"
+                    "I'm currently unable to access user data. You can still use basic commands like /help and /ping.\n\n"
+                    "Please try again later when database connectivity is restored."
+                )
+                return
+
             # Get user from database
-            user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+            user = await user_repo.get_by_telegram_id(session, user_id)
             logger.info(f"[START_TEXT] User lookup result: {user is not None}")
             
             if not user:
@@ -1151,6 +1171,7 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
                                 menu_text,
                                 reply_markup=get_main_menu_keyboard()
                             )
+                            logger.info(f"[START_TEXT] Successfully sent menu to user {user.id}")
                         except Exception as menu_error:
                             logger.error(f"[START_TEXT] Error showing main menu: {menu_error}")
                             # Fallback if menu creation fails
@@ -1167,11 +1188,14 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
                         logger.info(f"[START_TEXT] Sent 'has chats' message to user {message.from_user.id}")
         except Exception as db_error:
             logger.error(f"[START_TEXT] Database error: {db_error}")
-            # We already sent the immediate welcome, so no need to send another message
+            await message.answer(
+                "I'm having trouble accessing the database right now. Please try again later.\n\n"
+                "You can still use /help and /ping commands while we resolve this issue."
+            )
     except Exception as e:
         logger.exception(f"[START_TEXT] Error in fallback start handler: {e}")
         await message.answer(
-            "Welcome to Allkinds Chat Bot! Type /help for assistance."
+            "Welcome to Allkinds Chat Bot! Type /help for assistance or try again later."
         )
         # Still update last message time even on error
         try:
@@ -1188,15 +1212,19 @@ async def handle_ping(message: Message, state: FSMContext = None, session: Async
         chat_id = message.chat.id
         now = datetime.now()
         
+        logger.info(f"[PING] Received ping command from user {user_id} in chat {chat_id}")
+        
         if chat_id in last_message_time:
             last_time = last_message_time[chat_id]
             time_since_last = now - last_time
             if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
                 logger.info(f"[PING] Throttling for chat {chat_id}: sent message {time_since_last.total_seconds():.1f}s ago")
                 return  # Just silently return without sending a message
-                
-        logger.info(f"[PING] Received ping command from user {message.from_user.id}")
         
+        # Update last message time FIRST
+        last_message_time[chat_id] = now
+        
+        # We'll respond immediately without waiting for database operations
         response = (
             "💡 Bot Status: Online\n\n"
             "This command confirms that the bot is running and can respond to your requests.\n\n"
@@ -1206,22 +1234,36 @@ async def handle_ping(message: Message, state: FSMContext = None, session: Async
             "3. Use /start to see your active chats"
         )
         
-        # Add database status if we have a session
+        # Send immediate response
+        await message.answer(response)
+        logger.info(f"[PING] Sent immediate response to user {user_id}")
+        
+        # Only check database status if session is provided, but do it AFTER responding
         if session:
             try:
+                import asyncio
                 from sqlalchemy import text
-                result = await session.execute(text("SELECT 1"))
-                db_status = "Database: Connected ✅"
-            except Exception as e:
-                db_status = f"Database: Error ❌\n({str(e)[:50]}...)" if len(str(e)) > 50 else f"Database: Error ❌\n({str(e)})"
-            
-            response += f"\n\n{db_status}"
-        
-        await message.answer(response)
-        logger.info(f"[PING] Responded to ping from user {message.from_user.id}")
-        
-        # Update last message time
-        last_message_time[chat_id] = now
+                
+                # Try database with short timeout, but don't wait for this before responding
+                db_status = "Database: Checking... ⏱️"
+                
+                try:
+                    # Run database check with a very short timeout
+                    await asyncio.wait_for(session.execute(text("SELECT 1")), timeout=2.0)
+                    db_status = "Database: Connected ✅"
+                    logger.info(f"[PING] Database check successful for user {user_id}")
+                    
+                    # Send database status update separately
+                    await message.answer(db_status)
+                except Exception as e:
+                    db_status = f"Database: Error ❌\n({str(e)[:50]}...)" if len(str(e)) > 50 else f"Database: Error ❌\n({str(e)})"
+                    logger.error(f"[PING] Database check failed: {e}")
+                    
+                    # Send error status separately
+                    await message.answer(db_status)
+            except Exception as db_e:
+                logger.error(f"[PING] Error checking database: {db_e}")
+                # No need to send this error to the user, they already got the main response
     except Exception as e:
         logger.exception(f"[PING] Error in ping handler: {e}")
         try:
