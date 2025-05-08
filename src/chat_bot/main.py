@@ -267,26 +267,36 @@ async def shutdown(signal_name=None):
     
     logger.info("chat bot stopped.")
 
-async def start_chat_bot() -> None:
+async def start_chat_bot(token=None, use_webhook=False, webhook_url=None) -> None:
     """Initialize and start the chat bot."""
     global bot, dp, should_exit
     
-    if not CHAT_BOT_TOKEN:
-        logger.error("Chat Bot Token not found!")
-        return
-
-    # Reset webhook before starting
-    if not await reset_webhook():
-        logger.warning("Could not reset webhook completely, will try one more time...")
-        # Wait a bit and try one more time
-        await asyncio.sleep(5)
-        if not await reset_webhook():
-            logger.error("Failed to reset webhook after multiple attempts, this may cause conflicts!")
-
     try:
+        # Use token from parameter or environment
+        if not token:
+            token = os.environ.get("CHAT_BOT_TOKEN")
+            if not token:
+                logger.error("No token provided to start_chat_bot and CHAT_BOT_TOKEN env var not found")
+                raise ValueError("Telegram bot token is required")
+
+        # Validate token format
+        if not token or not token.strip() or len(token) < 20:
+            logger.error(f"Invalid token format. Token length: {len(token) if token else 0}")
+            raise ValueError("Invalid token format")
+            
+        logger.info("Initializing bot with valid token...")
+
+        # Reset webhook before starting
+        if not await reset_webhook():
+            logger.warning("Could not reset webhook completely, will try one more time...")
+            # Wait a bit and try one more time
+            await asyncio.sleep(5)
+            if not await reset_webhook():
+                logger.error("Failed to reset webhook after multiple attempts, this may cause conflicts!")
+
         logger.info("Creating bot instance with token...")
         bot = Bot(
-            token=CHAT_BOT_TOKEN,
+            token=token,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML)
         )
 
@@ -315,7 +325,7 @@ async def start_chat_bot() -> None:
             # Log detailed error for debugging
             import traceback
             logger.error(f"Bot verification traceback: {traceback.format_exc()}")
-            return
+            raise ValueError(f"Token is invalid!")
 
         storage = MemoryStorage()
         dp = Dispatcher(storage=storage)
@@ -327,24 +337,32 @@ async def start_chat_bot() -> None:
 
         register_handlers(dp)
 
-        logger.info("Starting chat bot in polling mode...")
-        
-        # Start polling
-        try:
-            logger.info("Bot started polling for updates")
-            await dp.start_polling(bot, skip_updates=True)
-        except asyncio.CancelledError:
-            logger.info("Bot polling cancelled")
-        except Exception as e:
-            logger.error(f"Error during polling: {e}")
-            logger.exception("Full traceback:")
-            logger.info("Starting chat bot in webhook mode...")
+        # Decide on webhook vs polling mode
+        if use_webhook and webhook_url:
+            logger.info(f"Starting chat bot in webhook mode with URL: {webhook_url}")
             await setup_webhook_server()
-        
+        else:
+            logger.info("Starting chat bot in polling mode...")
+            # Start polling
+            try:
+                logger.info("Bot started polling for updates")
+                await dp.start_polling(bot, skip_updates=True)
+            except asyncio.CancelledError:
+                logger.info("Bot polling cancelled")
+            except Exception as e:
+                logger.error(f"Error during polling: {e}")
+                logger.exception("Full traceback:")
+                if use_webhook:
+                    logger.info("Falling back to webhook mode...")
+                    await setup_webhook_server()
+                
     except Exception as e:
         logger.exception(f"Error starting chat bot: {e}")
+        raise
     finally:
-        await shutdown()
+        # Only shutdown if an exception was raised
+        if sys.exc_info()[0] is not None:
+            await shutdown()
 
 def setup_signal_handlers():
     """Set up signal handlers for graceful shutdown."""
