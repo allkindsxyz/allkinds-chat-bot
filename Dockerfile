@@ -8,15 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml and poetry.lock for dependency installation
-COPY pyproject.toml ./
+# Copy requirements file first for better layer caching
+COPY requirements.txt .
 
-# Install Poetry
-RUN pip install --no-cache-dir poetry
-
-# Install dependencies using Poetry
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --without dev
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
