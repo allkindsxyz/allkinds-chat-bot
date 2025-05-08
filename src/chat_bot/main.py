@@ -143,31 +143,88 @@ async def setup_webhook_server():
                                
         async def webhook_handler(request):
             """Handle webhook updates from Telegram."""
-            if request.content_type != 'application/json':
-                return web.Response(status=415, text='Only JSON is accepted')
-                
             try:
-                data = await request.read()
-                logger.info(f"Received webhook update: {len(data)} bytes")
+                logger.info(f"[WEBHOOK] Received request from {request.remote}")
                 
-                # Log message text if available for debugging
+                if request.content_type != 'application/json':
+                    logger.warning(f"[WEBHOOK] Invalid content type: {request.content_type}")
+                    return web.Response(status=415, text='Only JSON is accepted')
+                    
                 try:
-                    update_json = json.loads(data)
-                    if "message" in update_json and "text" in update_json["message"]:
-                        text = update_json["message"]["text"]
-                        logger.info(f"Message text: {text}")
-                except Exception:
-                    pass
-                
-                # Process update with the bot
-                update = types.Update.model_validate_json(data)
-                await dp.feed_update(bot=bot, update=update)
-                
-                return web.Response(text='{"ok":true}', content_type='application/json')
-            except Exception as e:
-                logger.error(f"Error processing webhook update: {e}")
+                    data = await request.read()
+                    logger.info(f"[WEBHOOK] Received webhook update: {len(data)} bytes")
+                    
+                    # Log message text if available for debugging
+                    try:
+                        update_json = json.loads(data)
+                        logger.info(f"[WEBHOOK] Update JSON: {update_json}")
+                        
+                        # Check for message and handle critical commands directly if processing fails
+                        if "message" in update_json and "text" in update_json["message"]:
+                            text = update_json["message"]["text"]
+                            logger.info(f"[WEBHOOK] Message text: {text}")
+                            user_id = update_json["message"].get("from", {}).get("id")
+                            
+                            # Try main processing path
+                            try:
+                                # Process update with the bot
+                                update = types.Update.model_validate_json(data)
+                                await dp.feed_update(bot=bot, update=update)
+                                logger.info(f"[WEBHOOK] Successfully processed update through dispatcher")
+                                return web.Response(text='{"ok":true}', content_type='application/json')
+                            except Exception as e:
+                                # Main processing failed, try emergency direct response for critical commands
+                                logger.error(f"[WEBHOOK] Error in main processing: {e}")
+                                import traceback
+                                logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
+                                
+                                # For critical commands, send direct response
+                                if text == "/start":
+                                    logger.info(f"[WEBHOOK] Direct handling for /start command")
+                                    try:
+                                        await bot.send_message(
+                                            chat_id=user_id,
+                                            text="Welcome to the Allkinds Chat Bot! 👋\n\n"
+                                                "This bot lets you chat anonymously with your matches.\n\n"
+                                                "To get started, find a match in @AllkindsTeamBot."
+                                        )
+                                        logger.info(f"[WEBHOOK] Direct response sent for /start")
+                                    except Exception as direct_error:
+                                        logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
+                                
+                                elif text == "/help":
+                                    logger.info(f"[WEBHOOK] Direct handling for /help command")
+                                    try:
+                                        await bot.send_message(
+                                            chat_id=user_id,
+                                            text="Need help? This bot lets you chat anonymously with your matches from the Allkinds main bot.",
+                                            parse_mode="HTML"
+                                        )
+                                        logger.info(f"[WEBHOOK] Direct response sent for /help")
+                                    except Exception as direct_error:
+                                        logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
+                        else:
+                            # No text command to handle as fallback, try normal processing
+                            update = types.Update.model_validate_json(data)
+                            await dp.feed_update(bot=bot, update=update)
+                            logger.info(f"[WEBHOOK] Successfully processed non-message update")
+                    except Exception as json_error:
+                        logger.error(f"[WEBHOOK] Error parsing JSON: {json_error}")
+                        # Try main processing anyway
+                        update = types.Update.model_validate_json(data)
+                        await dp.feed_update(bot=bot, update=update)
+                    
+                    return web.Response(text='{"ok":true}', content_type='application/json')
+                except Exception as e:
+                    logger.error(f"[WEBHOOK] Error processing webhook update: {e}")
+                    import traceback
+                    logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
+                    return web.Response(text='{"ok":false,"error":"Internal Server Error"}', 
+                                       content_type='application/json', status=500)
+            except Exception as outer_e:
+                logger.error(f"[WEBHOOK] Outer exception in webhook handler: {outer_e}")
                 import traceback
-                logger.error(traceback.format_exc())
+                logger.error(f"[WEBHOOK] Outer traceback: {traceback.format_exc()}")
                 return web.Response(text='{"ok":false,"error":"Internal Server Error"}', 
                                    content_type='application/json', status=500)
         
