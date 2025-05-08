@@ -238,6 +238,20 @@ async def setup_webhook_server():
         app.router.add_get("/", root_handler)
         app.router.add_post("/chat_webhook", webhook_handler)
         
+        # Add a simple diagnostic test route
+        async def test_route_handler(request):
+            """Simple test route to check if the server is responding."""
+            logger.info(f"[TEST_ROUTE] Test route accessed from {request.remote}")
+            return web.Response(text=json.dumps({
+                "status": "ok",
+                "server": "allkinds-chat-bot",
+                "time": str(datetime.now()),
+                "webhook_path": webhook_path,
+                "webhook_url": f"{webhook_host}{webhook_path}" if webhook_host else "not_set"
+            }), content_type='application/json')
+            
+        app.router.add_get("/test", test_route_handler)
+        
         # Log all routes for debugging
         logger.info("Registered routes:")
         for route in app.router.routes():
@@ -266,10 +280,41 @@ async def setup_webhook_server():
             logger.info(f"Setting webhook URL: {webhook_url}")
             
             try:
+                # First, check current webhook setting
+                webhook_info = await bot.get_webhook_info()
+                logger.info(f"Current webhook info: url={webhook_info.url}, pending_update_count={webhook_info.pending_update_count}")
+                
+                # Set the webhook
                 await bot.set_webhook(webhook_url)
                 logger.info("Webhook set successfully")
+                
+                # Verify webhook was set correctly
+                webhook_info = await bot.get_webhook_info()
+                logger.info(f"Verified webhook info after setting: url={webhook_info.url}, pending_update_count={webhook_info.pending_update_count}")
+                
+                if webhook_info.url != webhook_url:
+                    logger.error(f"Webhook verification failed! Expected {webhook_url}, got {webhook_info.url}")
+                else:
+                    logger.info("Webhook verification successful")
+                    
+                # Check for last error
+                if webhook_info.last_error_date:
+                    logger.error(f"Webhook has error: {webhook_info.last_error_message} at {webhook_info.last_error_date}")
+                
             except Exception as e:
                 logger.error(f"Failed to set webhook: {e}")
+                import traceback
+                logger.error(f"Webhook setup traceback: {traceback.format_exc()}")
+                
+                # Try an alternate method to set webhook directly with requests
+                try:
+                    logger.info("Trying alternate webhook setup method...")
+                    import requests
+                    set_webhook_url = f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}"
+                    response = requests.get(set_webhook_url, verify=False)
+                    logger.info(f"Alternate webhook setup result: {response.status_code} {response.text}")
+                except Exception as alt_e:
+                    logger.error(f"Alternate webhook setup failed: {alt_e}")
         else:
             logger.warning("No webhook host set, skipping webhook configuration")
         
