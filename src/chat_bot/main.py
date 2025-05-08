@@ -155,7 +155,7 @@ async def reset_webhook():
 async def setup_webhook_server():
     """Set up a web server for webhooks and health checks."""
     try:
-        port = int(os.environ.get("chat_PORT", 8082))
+        port = int(os.environ.get("PORT", 8080))
         logger.info(f"Setting up chat webhook server on port {port}")
         
         app = web.Application()
