@@ -8,13 +8,17 @@ from aiogram.types import Message, CallbackQuery
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.db.models import Chat
 from src.db.repositories.user import user_repo
 from src.db.repositories.match_repo import get_match_between_users, get_with_users
 from src.db.repositories.chat_message_repo import chat_message_repo
 from src.db.repositories.blocked_user_repo import blocked_user_repo
+
+# Message throttling system to prevent spam
+last_message_time = {}
+MESSAGE_THROTTLE_SECONDS = 5  # Only allow messages every 5 seconds to the same user
 
 from .states import ChatState
 from .keyboards import (
@@ -392,21 +396,6 @@ async def handle_start_without_link(
         else:
             # Generic error message
             await message.answer("An error occurred while processing your request. Please try again later.")
-        
-        # Also try a simplified flow that bypasses most database operations
-        try:
-            logger.info(f"[START_CMD] Trying simplified fallback for user {message.from_user.id}")
-            await message.answer(
-                "Welcome to the Allkinds Chat Bot! 👋\n\n"
-                "This bot lets you chat anonymously with your matches.\n\n"
-                "To get started:\n"
-                "1. Find a match in @AllkindsTeamBot\n"
-                "2. Once matched, you'll receive a link to chat here\n\n"
-                "Need help? Type /help for assistance."
-            )
-            logger.info(f"[START_CMD] Fallback message sent successfully to {message.from_user.id}")
-        except Exception as inner_e:
-            logger.error(f"[START_CMD] Even simplified fallback failed: {inner_e}")
 
 
 # Select chat partner
@@ -1030,33 +1019,62 @@ async def handle_whats_next(message: Message, state: FSMContext, session: AsyncS
 @router.message(Command("help"))
 async def handle_help(message: Message):
     """Provide help information about how to use the chat bot."""
-    logger.info(f"User {message.from_user.id} requested help information")
-    
-    help_text = (
-        "📱 <b>Allkinds Chat Bot Help</b> 📱\n\n"
-        "<b>What is this bot?</b>\n"
-        "This is the anonymous chat bot for Allkinds. It allows you to chat with people you've matched with "
-        "in the main Allkinds bot without revealing your personal contact information.\n\n"
+    try:
+        # Apply throttling to prevent spam
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+        now = datetime.now()
         
-        "<b>How to use this bot:</b>\n"
-        "1. Find matches in the main @AllkindsTeamBot\n"
-        "2. Once matched, you'll get a link to start chatting here\n"
-        "3. Messages are anonymous until you both decide to reveal contact info\n\n"
+        if chat_id in last_message_time:
+            last_time = last_message_time[chat_id]
+            time_since_last = now - last_time
+            if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                logger.info(f"[HELP] Throttling for chat {chat_id}: sent message {time_since_last.total_seconds():.1f}s ago")
+                return  # Just silently return without sending a message
         
-        "<b>Available commands:</b>\n"
-        "/start - Start or restart the bot\n"
-        "/menu - Show main menu with options\n"
-        "/help - Show this help message\n\n"
+        logger.info(f"User {message.from_user.id} requested help information")
         
-        "If you don't have any matches yet, head to @AllkindsTeamBot to find people with shared values!"
-    )
-    
-    await message.answer(help_text, parse_mode="HTML")
+        help_text = (
+            "📱 <b>Allkinds Chat Bot Help</b> 📱\n\n"
+            "<b>What is this bot?</b>\n"
+            "This is the anonymous chat bot for Allkinds. It allows you to chat with people you've matched with "
+            "in the main Allkinds bot without revealing your personal contact information.\n\n"
+            
+            "<b>How to use this bot:</b>\n"
+            "1. Find matches in the main @AllkindsTeamBot\n"
+            "2. Once matched, you'll get a link to start chatting here\n"
+            "3. Messages are anonymous until you both decide to reveal contact info\n\n"
+            
+            "<b>Available commands:</b>\n"
+            "/start - Start or restart the bot\n"
+            "/menu - Show main menu with options\n"
+            "/help - Show this help message\n\n"
+            
+            "If you don't have any matches yet, head to @AllkindsTeamBot to find people with shared values!"
+        )
+        
+        await message.answer(help_text, parse_mode="HTML")
+        # Update last message time
+        last_message_time[chat_id] = now
+    except Exception as e:
+        logger.error(f"Error in help handler: {e}")
 
 @router.message(F.text == "/start")
 async def handle_start_text(message: Message, state: FSMContext = None, session: AsyncSession = None):
     """Direct text handler for /start command as a fallback."""
     try:
+        # Apply throttling to prevent spam
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+        now = datetime.now()
+        
+        if chat_id in last_message_time:
+            last_time = last_message_time[chat_id]
+            time_since_last = now - last_time
+            if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                logger.info(f"[START_TEXT] Throttling for chat {chat_id}: sent message {time_since_last.total_seconds():.1f}s ago")
+                return  # Just silently return without sending a message
+        
         logger.info(f"[START_TEXT] Direct text handler for /start command from user {message.from_user.id}")
         
         # If we don't have a session, provide a generic welcome message
@@ -1070,6 +1088,8 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
                 "Need help? Type /help for assistance."
             )
             logger.info(f"[START_TEXT] Sent generic welcome message to user {message.from_user.id} (no session)")
+            # Update last message time
+            last_message_time[chat_id] = now
             return
             
         # Get user from database
@@ -1146,16 +1166,36 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
                         "You have active chats. Use /menu to navigate."
                     )
                     logger.info(f"[START_TEXT] Sent 'has chats' message to user {message.from_user.id}")
+        
+        # Update last message time
+        last_message_time[chat_id] = now
     except Exception as e:
         logger.exception(f"[START_TEXT] Error in fallback start handler: {e}")
         await message.answer(
             "Welcome to Allkinds Chat Bot! Type /help for assistance."
         )
+        # Still update last message time even on error
+        try:
+            last_message_time[message.chat.id] = datetime.now()
+        except:
+            pass
 
 @router.message(Command("ping"))
 async def handle_ping(message: Message, state: FSMContext = None, session: AsyncSession = None, bot: Bot = None):
     """Simple ping command that doesn't require database access."""
     try:
+        # Apply throttling to prevent spam
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+        now = datetime.now()
+        
+        if chat_id in last_message_time:
+            last_time = last_message_time[chat_id]
+            time_since_last = now - last_time
+            if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                logger.info(f"[PING] Throttling for chat {chat_id}: sent message {time_since_last.total_seconds():.1f}s ago")
+                return  # Just silently return without sending a message
+                
         logger.info(f"[PING] Received ping command from user {message.from_user.id}")
         
         response = (
@@ -1180,9 +1220,14 @@ async def handle_ping(message: Message, state: FSMContext = None, session: Async
         
         await message.answer(response)
         logger.info(f"[PING] Responded to ping from user {message.from_user.id}")
+        
+        # Update last message time
+        last_message_time[chat_id] = now
     except Exception as e:
         logger.exception(f"[PING] Error in ping handler: {e}")
         try:
             await message.answer("Error processing ping command. Please try again later.")
+            # Still update last message time even on error
+            last_message_time[message.chat.id] = datetime.now()
         except Exception as inner_e:
             logger.error(f"[PING] Even basic response failed: {inner_e}") 

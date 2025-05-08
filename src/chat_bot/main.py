@@ -13,7 +13,7 @@ import ssl
 from dotenv import load_dotenv
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from typing import Any, Awaitable, Callable, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
 from aiohttp import web
 from aiogram import types
@@ -22,6 +22,10 @@ import json
 from src.chat_bot.handlers import register_handlers
 from src.core.config import get_settings
 from src.chat_bot.middlewares import DatabaseMiddleware, LoggingMiddleware, BotMiddleware
+
+# Message throttling system to prevent spam
+last_message_time = {}
+MESSAGE_THROTTLE_SECONDS = 5  # Only allow messages every 5 seconds to the same user
 
 # Set up logging to a specific file for debugging
 current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -166,12 +170,23 @@ async def setup_webhook_server():
                             user_id = update_json["message"].get("from", {}).get("id")
                             chat_id = update_json["message"].get("chat", {}).get("id")
                             
+                            # Apply throttling to prevent sending too many messages to the same user
+                            now = datetime.now()
+                            if chat_id in last_message_time:
+                                last_time = last_message_time[chat_id]
+                                time_since_last = now - last_time
+                                if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                                    logger.info(f"[WEBHOOK] Throttling message to chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
+                                    return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
+                            
                             # Try main processing path
                             try:
                                 # Process update with the bot
                                 update = types.Update.model_validate_json(data)
                                 await dp.feed_update(bot=bot, update=update)
                                 logger.info(f"[WEBHOOK] Successfully processed update through dispatcher")
+                                # Update last message time if we sent a message
+                                last_message_time[chat_id] = now
                                 return web.Response(text='{"ok":true}', content_type='application/json')
                             except Exception as e:
                                 # Main processing failed, try emergency direct response for critical commands
@@ -182,6 +197,16 @@ async def setup_webhook_server():
                                 # For critical commands, send direct response
                                 if text.startswith("/start"):
                                     logger.info(f"[WEBHOOK] Direct handling for /start command")
+                                    
+                                    # Apply throttling
+                                    now = datetime.now()
+                                    if chat_id in last_message_time:
+                                        last_time = last_message_time[chat_id]
+                                        time_since_last = now - last_time
+                                        if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                                            logger.info(f"[WEBHOOK] Throttling /start for chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
+                                            return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
+                                    
                                     try:
                                         # Get user from database
                                         from src.db.repositories.user import user_repo
@@ -237,6 +262,9 @@ async def setup_webhook_server():
                                                         "You have active chats. Use the menu to navigate."
                                                 )
                                         
+                                        # Update throttling timestamp
+                                        last_message_time[chat_id] = now
+                                        
                                         logger.info(f"[WEBHOOK] Direct response sent for /start")
                                         return web.Response(text='{"ok":true}', content_type='application/json')
                                     except Exception as direct_error:
@@ -252,17 +280,32 @@ async def setup_webhook_server():
                                                     "If you're new here, please register in the main @AllkindsTeamBot first.\n\n"
                                                     "If you're already registered, you can find matches in the main bot."
                                             )
+                                            # Update throttling timestamp
+                                            last_message_time[chat_id] = now
                                         except Exception as fallback_error:
                                             logger.error(f"[WEBHOOK] Even fallback greeting failed: {fallback_error}")
                                 
                                 elif text.startswith("/help"):
                                     logger.info(f"[WEBHOOK] Direct handling for /help command")
+                                    
+                                    # Apply throttling
+                                    now = datetime.now()
+                                    if chat_id in last_message_time:
+                                        last_time = last_message_time[chat_id]
+                                        time_since_last = now - last_time
+                                        if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                                            logger.info(f"[WEBHOOK] Throttling /help for chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
+                                            return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
+                                    
                                     try:
                                         await bot.send_message(
                                             chat_id=chat_id,
                                             text="Need help? This bot lets you chat anonymously with your matches from the Allkinds main bot.",
                                             parse_mode="HTML"
                                         )
+                                        # Update throttling timestamp
+                                        last_message_time[chat_id] = now
+                                        
                                         logger.info(f"[WEBHOOK] Direct response sent for /help")
                                         return web.Response(text='{"ok":true}', content_type='application/json')
                                     except Exception as direct_error:
@@ -270,6 +313,16 @@ async def setup_webhook_server():
                                 
                                 elif text.startswith("/ping"):
                                     logger.info(f"[WEBHOOK] Direct handling for /ping command")
+                                    
+                                    # Apply throttling
+                                    now = datetime.now()
+                                    if chat_id in last_message_time:
+                                        last_time = last_message_time[chat_id]
+                                        time_since_last = now - last_time
+                                        if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                                            logger.info(f"[WEBHOOK] Throttling /ping for chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
+                                            return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
+                                    
                                     try:
                                         response = (
                                             "💡 Bot Status: Online\n\n"
@@ -303,6 +356,9 @@ async def setup_webhook_server():
                                             chat_id=chat_id,
                                             text=response
                                         )
+                                        # Update throttling timestamp
+                                        last_message_time[chat_id] = now
+                                        
                                         logger.info(f"[WEBHOOK] Direct response sent for /ping")
                                         return web.Response(text='{"ok":true}', content_type='application/json')
                                     except Exception as direct_error:
