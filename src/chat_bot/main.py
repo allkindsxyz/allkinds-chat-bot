@@ -55,35 +55,6 @@ bot = None
 dp = None
 should_exit = False
 
-# Setup health check server
-async def setup_health_server():
-    """Set up a health check web server for Railway."""
-    port = os.environ.get("PORT", "8080")
-    
-    # Create a simple health check endpoint
-    async def health_handler(request):
-        """Handler for /health endpoint."""
-        logger.debug("Health check received")
-        return web.Response(text="chat bot is running")
-    
-    app = web.Application()
-    app.router.add_get("/health", health_handler)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(port))
-    await site.start()
-    
-    logger.info(f"Health check server running on port {port}")
-    
-    # Keep the server running
-    while not should_exit:
-        await asyncio.sleep(1)
-    
-    # Cleanup when exiting
-    logger.info("Shutting down health check server")
-    await runner.cleanup()
-
 async def reset_webhook():
     """Reset the Telegram webhook to ensure no conflicts."""
     if not CHAT_BOT_TOKEN:
@@ -167,7 +138,7 @@ async def setup_webhook_server():
                                
         async def health_handler(request):
             """Health check handler for Railway."""
-            return web.Response(text='{"status":"ok","service":"chat_bot"}', 
+            return web.Response(text='{"status":"ok","service":"allkinds-chat-bot","version":"1.0.0"}', 
                                content_type='application/json')
                                
         async def webhook_handler(request):
@@ -209,6 +180,11 @@ async def setup_webhook_server():
         app.router.add_get("/health", health_handler)
         app.router.add_get("/", root_handler)
         app.router.add_post("/chat_webhook", webhook_handler)
+        
+        # Log all routes for debugging
+        logger.info("Registered routes:")
+        for route in app.router.routes():
+            logger.info(f"  {route.method} {route.resource.canonical}")
         
         # Start the server
         runner = web.AppRunner(app)

@@ -139,9 +139,8 @@ async def main():
         webhook_url = get_webhook_url()
         logger.info(f"==== STARTUP TRACKING: Webhook URL: {webhook_url} ====")
         
-        # Start health check server (for Railway)
-        health_check = await setup_simple_health_check()
-        logger.info("==== STARTUP TRACKING: Health check server started ====")
+        # Skip setting up health check server since chat bot will handle it
+        logger.info("==== STARTUP TRACKING: Skipping separate health check server, webhook server will handle health checks ====")
         
         # Start chat bot
         logger.info("==== STARTUP TRACKING: Starting Chat Bot... ====")
