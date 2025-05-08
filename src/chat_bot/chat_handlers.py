@@ -289,65 +289,96 @@ async def handle_start_without_link(
     bot: Bot = None
 ):
     """Handle direct start command without deep link. Shows active chats as inline buttons."""
-    if not session or not state:
-        logger.error("Missing required dependencies for handle_start_without_link")
-        await message.answer("An error occurred. Please try again later.")
-        return
+    try:
+        logger.info(f"[START_CMD] Handling /start command for user {message.from_user.id}")
         
-    user = await user_repo.get_by_telegram_id(session, message.from_user.id)
-    if not user:
-        await message.answer("You need to register in the main bot first.")
-        return
-    
-    # Get all active chats directly
-    all_chats = await get_active_chats_for_user(session, user.id)
-    logger.info(f"Found {len(all_chats)} active chats for user {user.id}")
-    
-    if not all_chats:
-        await message.answer(
-            "You don't have any active chats yet. Find a match in the main bot first!"
-        )
-        return
-    
-    # Format users for keyboard
-    users_data = []
-    
-    for chat in all_chats:
-        # Determine partner ID
-        partner_id = chat.recipient_id if chat.initiator_id == user.id else chat.initiator_id
-        partner = await user_repo.get(session, partner_id)
+        if not session or not state:
+            logger.error(f"[START_CMD] Missing required dependencies for handle_start_without_link: session={bool(session)}, state={bool(state)}")
+            await message.answer("An error occurred. Please try again later.")
+            return
+            
+        logger.info(f"[START_CMD] Looking up user {message.from_user.id} in database")
+        user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+        logger.info(f"[START_CMD] User lookup result: {user is not None}")
         
-        if not partner:
-            continue
+        if not user:
+            logger.info(f"[START_CMD] User {message.from_user.id} not registered, sending welcome message")
+            await message.answer(
+                "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                "You need to register in the main Allkinds bot first to use this service.\n\n"
+                "Please visit @AllkindsTeamBot to create your profile and find matches."
+            )
+            return
         
-        # Get unread count
-        unread_count = await get_unread_message_count(session, chat.id, user.id)
+        logger.info(f"[START_CMD] Getting active chats for user ID {user.id}")
+        # Get all active chats directly
+        all_chats = await get_active_chats_for_user(session, user.id)
+        logger.info(f"[START_CMD] Found {len(all_chats)} active chats for user {user.id}")
         
-        # Get partner nickname
-        partner_name = await get_partner_nickname(session, partner_id)
+        if not all_chats:
+            logger.info(f"[START_CMD] No active chats for user {user.id}, sending info message")
+            # More informative message with clear next steps
+            await message.answer(
+                "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                "This bot lets you chat anonymously with your matches.\n\n"
+                "You don't have any active chats yet. To get started:\n"
+                "1. Find a match in @AllkindsTeamBot\n"
+                "2. Once matched, you'll receive a link to chat here\n\n"
+                "Need help? Type /help for assistance."
+            )
+            logger.info(f"[START_CMD] Welcome message sent to user {user.id}")
+            return
         
-        # Create user data entry
-        users_data.append({
-            "id": partner.id,
-            "name": partner_name,
-            "unread_count": unread_count,
-            "chat_id": chat.id
-        })
-    
-    # Sort users - unread messages first, then alphabetically
-    users_data.sort(key=lambda x: (-(x['unread_count'] > 0), x['name']))
-    
-    # Show available chats directly
-    if users_data:
-        await message.answer(
-            "Select a chat to start messaging:",
-            reply_markup=get_chat_selection_keyboard(users_data)
-        )
-        await state.set_state(ChatState.selecting_chat)
-    else:
-        await message.answer(
-            "You don't have any active chats yet. Find a match in the main bot first!"
-        )
+        # Format users for keyboard
+        users_data = []
+        
+        for chat in all_chats:
+            # Determine partner ID
+            partner_id = chat.recipient_id if chat.initiator_id == user.id else chat.initiator_id
+            logger.info(f"[START_CMD] Getting partner {partner_id} for chat {chat.id}")
+            
+            partner = await user_repo.get(session, partner_id)
+            
+            if not partner:
+                logger.warning(f"[START_CMD] Partner {partner_id} not found for chat {chat.id}")
+                continue
+            
+            # Get unread count
+            unread_count = await get_unread_message_count(session, chat.id, user.id)
+            
+            # Get partner nickname
+            partner_name = await get_partner_nickname(session, partner_id)
+            
+            # Create user data entry
+            users_data.append({
+                "id": partner.id,
+                "name": partner_name,
+                "unread_count": unread_count,
+                "chat_id": chat.id
+            })
+        
+        # Sort users - unread messages first, then alphabetically
+        users_data.sort(key=lambda x: (-(x['unread_count'] > 0), x['name']))
+        logger.info(f"[START_CMD] Prepared data for {len(users_data)} chats")
+        
+        # Show available chats directly
+        if users_data:
+            logger.info(f"[START_CMD] Sending chat selection keyboard to user {user.id}")
+            await message.answer(
+                "Select a chat to start messaging:",
+                reply_markup=get_chat_selection_keyboard(users_data)
+            )
+            await state.set_state(ChatState.selecting_chat)
+            logger.info(f"[START_CMD] Set state to ChatState.selecting_chat for user {user.id}")
+        else:
+            logger.warning(f"[START_CMD] No valid partners found for user {user.id} despite having {len(all_chats)} chats")
+            await message.answer(
+                "You don't have any active chats yet. Find a match in the main bot first!"
+            )
+            
+    except Exception as e:
+        logger.exception(f"[START_CMD] Error in handle_start_without_link for user {message.from_user.id}: {e}")
+        await message.answer("An error occurred while processing your request. Please try again later.")
 
 
 # Select chat partner
@@ -966,4 +997,30 @@ async def handle_whats_next(message: Message, state: FSMContext, session: AsyncS
     await message.answer(
         f"What would you like to do with your chat with {partner_name}?",
         reply_markup=get_whats_next_keyboard(partner_id)
-    ) 
+    )
+
+@router.message(Command("help"))
+async def handle_help(message: Message):
+    """Provide help information about how to use the chat bot."""
+    logger.info(f"User {message.from_user.id} requested help information")
+    
+    help_text = (
+        "📱 <b>Allkinds Chat Bot Help</b> 📱\n\n"
+        "<b>What is this bot?</b>\n"
+        "This is the anonymous chat bot for Allkinds. It allows you to chat with people you've matched with "
+        "in the main Allkinds bot without revealing your personal contact information.\n\n"
+        
+        "<b>How to use this bot:</b>\n"
+        "1. Find matches in the main @AllkindsTeamBot\n"
+        "2. Once matched, you'll get a link to start chatting here\n"
+        "3. Messages are anonymous until you both decide to reveal contact info\n\n"
+        
+        "<b>Available commands:</b>\n"
+        "/start - Start or restart the bot\n"
+        "/menu - Show main menu with options\n"
+        "/help - Show this help message\n\n"
+        
+        "If you don't have any matches yet, head to @AllkindsTeamBot to find people with shared values!"
+    )
+    
+    await message.answer(help_text, parse_mode="HTML") 
