@@ -177,8 +177,9 @@ def get_async_engine(*args, **kwargs):
         else:
             logger.critical("No database URL found in environment variables!")
             if IS_RAILWAY:
-                # In production, fail fast
-                raise ValueError("DATABASE_URL environment variable is required")
+                # In production, use SQLite as temporary fallback instead of raising
+                logger.warning("Using SQLite as temporary fallback even in production")
+                database_url = "sqlite+aiosqlite:///./allkinds.db"
             else:
                 # In development, use SQLite as a fallback
                 logger.warning("Using SQLite as fallback for development in get_async_engine")
@@ -193,7 +194,7 @@ def get_async_engine(*args, **kwargs):
         logger.info(f"Enforcing asyncpg driver with URL: {database_url[:25]}...")
 
     # Set connection parameters with sensible timeouts
-    connect_args_local = {} # Default to empty for SQLite
+    connect_args_local = {}
     if 'postgresql' in database_url or 'postgres' in database_url: # Check the potentially modified database_url
         connect_args_local = {
             "timeout": 120, 
@@ -213,7 +214,7 @@ def get_async_engine(*args, **kwargs):
     
     # Create engine with retry logic
     max_retries = 3
-    retry_delay = 2  # seconds
+    retry_delay = 2
     
     for attempt in range(max_retries):
         try:
@@ -238,7 +239,14 @@ def get_async_engine(*args, **kwargs):
                 retry_delay *= 2  # Exponential backoff
             else:
                 logger.error(f"Failed to establish database connection after {max_retries} attempts: {e}")
-                raise
+                # Instead of raising, return a SQLite in-memory engine as ultimate fallback
+                logger.warning("Using in-memory SQLite as last-resort fallback")
+                return create_async_engine(
+                    "sqlite+aiosqlite:///:memory:",
+                    echo=False,
+                    future=True,
+                    connect_args={"check_same_thread": False}
+                )
 
 async def init_models(engine):
     """Initialize database models with proper handling for Railway environment."""
