@@ -24,8 +24,9 @@ from src.core.config import get_settings
 from src.chat_bot.middlewares import DatabaseMiddleware, LoggingMiddleware, BotMiddleware
 
 # Message throttling system to prevent spam
+# Reduce the throttling to prevent unresponsiveness 
 last_message_time = {}
-MESSAGE_THROTTLE_SECONDS = 5  # Only allow messages every 5 seconds to the same user
+MESSAGE_THROTTLE_SECONDS = 2  # Reduced from 5 to 2 seconds
 
 # Set up logging to a specific file for debugging
 current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -161,9 +162,20 @@ async def setup_webhook_server():
                     # Log message text if available for debugging
                     try:
                         update_json = json.loads(data)
-                        logger.info(f"[WEBHOOK] Update JSON: {update_json}")
+                        # Log update summary instead of full JSON to avoid massive logs
+                        update_type = "unknown"
+                        if "message" in update_json:
+                            update_type = "message"
+                            if "text" in update_json["message"]:
+                                update_type = f"message with text: {update_json['message']['text']}"
+                        elif "callback_query" in update_json:
+                            update_type = "callback_query"
+                        elif "inline_query" in update_json:
+                            update_type = "inline_query"
+                            
+                        logger.info(f"[WEBHOOK] Update type: {update_type}")
                         
-                        # Check for message and handle critical commands directly if processing fails
+                        # Fast-path for critical commands
                         if "message" in update_json and "text" in update_json["message"]:
                             text = update_json["message"]["text"]
                             logger.info(f"[WEBHOOK] Message text: {text}")
@@ -171,15 +183,26 @@ async def setup_webhook_server():
                             chat_id = update_json["message"].get("chat", {}).get("id")
                             
                             # Apply throttling to prevent sending too many messages to the same user
+                            # But never throttle the /start command to ensure responsiveness
                             now = datetime.now()
-                            if chat_id in last_message_time:
+                            if chat_id in last_message_time and text != "/start":
                                 last_time = last_message_time[chat_id]
                                 time_since_last = now - last_time
                                 if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
                                     logger.info(f"[WEBHOOK] Throttling message to chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
                                     return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
                             
-                            # Try main processing path
+                            # FAST PATH: Directly handle /start, /help, /ping commands
+                            # This ensures these essential commands always get a response, even if the dispatcher fails
+                            if text == "/start":
+                                # Process direct commands BEFORE trying the dispatcher
+                                # This ensures at least some response is sent quickly
+                                await direct_command_handler(text, chat_id, user_id, update_json)
+                                
+                                # Update last message time
+                                last_message_time[chat_id] = now
+                            
+                            # Try main processing path (will also handle all other commands)
                             try:
                                 # Process update with the bot
                                 update = types.Update.model_validate_json(data)
@@ -194,175 +217,11 @@ async def setup_webhook_server():
                                 import traceback
                                 logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
                                 
-                                # For critical commands, send direct response
-                                if text.startswith("/start"):
-                                    logger.info(f"[WEBHOOK] Direct handling for /start command")
-                                    
-                                    # Apply throttling
-                                    now = datetime.now()
-                                    if chat_id in last_message_time:
-                                        last_time = last_message_time[chat_id]
-                                        time_since_last = now - last_time
-                                        if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
-                                            logger.info(f"[WEBHOOK] Throttling /start for chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
-                                            return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
-                                    
-                                    try:
-                                        # Get user from database
-                                        from src.db.repositories.user import user_repo
-                                        from src.chat_bot.repositories import get_active_chats_for_user
-                                        from src.db.base import get_async_session
-                                        
-                                        # Create session
-                                        session_maker = get_async_session()
-                                        
-                                        user = None
-                                        try:
-                                            # Try to get the user, but handle exceptions if DB isn't available
-                                            async with session_maker() as sess:
-                                                user = await user_repo.get_by_telegram_id(sess, user_id)
-                                        except Exception as db_error:
-                                            logger.error(f"[WEBHOOK] Database error when getting user: {db_error}")
-                                        
-                                        if not user:
-                                            # Case 1: User not in DB
-                                            await bot.send_message(
-                                                chat_id=chat_id,
-                                                text="Welcome to the Allkinds Chat Bot! 👋\n\n"
-                                                    "You need to register in the main Allkinds bot first to use this service.\n\n"
-                                                    "Please visit @AllkindsTeamBot to create your profile and find matches."
-                                            )
-                                        else:
-                                            # User exists, check for active chats
-                                            has_chats = False
-                                            try:
-                                                async with session_maker() as sess:
-                                                    chats = await get_active_chats_for_user(sess, user.id)
-                                                    has_chats = len(chats) > 0
-                                            except Exception as chat_error:
-                                                logger.error(f"[WEBHOOK] Error getting chats: {chat_error}")
-                                            
-                                            if not has_chats:
-                                                # Case 2: User in DB but no active chats
-                                                await bot.send_message(
-                                                    chat_id=chat_id,
-                                                    text="Welcome to the Allkinds Chat Bot! 👋\n\n"
-                                                        "You don't have any active chats yet. To get started:\n"
-                                                        "1. Go to @AllkindsTeamBot\n"
-                                                        "2. Find a match with a compatible person\n"
-                                                        "3. Come back here to chat anonymously"
-                                                )
-                                            else:
-                                                # Case 3: User has active chats
-                                                # Just send a simple welcome message, the proper menu will be displayed by the main handler
-                                                # if it recovers from the error
-                                                await bot.send_message(
-                                                    chat_id=chat_id,
-                                                    text="Welcome to the Allkinds Chat Bot! 👋\n\n"
-                                                        "You have active chats. Use the menu to navigate."
-                                                )
-                                        
-                                        # Update throttling timestamp
-                                        last_message_time[chat_id] = now
-                                        
-                                        logger.info(f"[WEBHOOK] Direct response sent for /start")
-                                        return web.Response(text='{"ok":true}', content_type='application/json')
-                                    except Exception as direct_error:
-                                        logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
-                                        import traceback
-                                        logger.error(f"[WEBHOOK] Direct response traceback: {traceback.format_exc()}")
-                                        
-                                        # Try sending a simple message if DB access failed completely
-                                        try:
-                                            await bot.send_message(
-                                                chat_id=chat_id,
-                                                text="Welcome to the Allkinds Chat Bot! 👋\n\n"
-                                                    "If you're new here, please register in the main @AllkindsTeamBot first.\n\n"
-                                                    "If you're already registered, you can find matches in the main bot."
-                                            )
-                                            # Update throttling timestamp
-                                            last_message_time[chat_id] = now
-                                        except Exception as fallback_error:
-                                            logger.error(f"[WEBHOOK] Even fallback greeting failed: {fallback_error}")
-                                
-                                elif text.startswith("/help"):
-                                    logger.info(f"[WEBHOOK] Direct handling for /help command")
-                                    
-                                    # Apply throttling
-                                    now = datetime.now()
-                                    if chat_id in last_message_time:
-                                        last_time = last_message_time[chat_id]
-                                        time_since_last = now - last_time
-                                        if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
-                                            logger.info(f"[WEBHOOK] Throttling /help for chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
-                                            return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
-                                    
-                                    try:
-                                        await bot.send_message(
-                                            chat_id=chat_id,
-                                            text="Need help? This bot lets you chat anonymously with your matches from the Allkinds main bot.",
-                                            parse_mode="HTML"
-                                        )
-                                        # Update throttling timestamp
-                                        last_message_time[chat_id] = now
-                                        
-                                        logger.info(f"[WEBHOOK] Direct response sent for /help")
-                                        return web.Response(text='{"ok":true}', content_type='application/json')
-                                    except Exception as direct_error:
-                                        logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
-                                
-                                elif text.startswith("/ping"):
-                                    logger.info(f"[WEBHOOK] Direct handling for /ping command")
-                                    
-                                    # Apply throttling
-                                    now = datetime.now()
-                                    if chat_id in last_message_time:
-                                        last_time = last_message_time[chat_id]
-                                        time_since_last = now - last_time
-                                        if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
-                                            logger.info(f"[WEBHOOK] Throttling /ping for chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
-                                            return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
-                                    
-                                    try:
-                                        response = (
-                                            "💡 Bot Status: Online\n\n"
-                                            "This command confirms that the bot is running and can respond to your requests.\n\n"
-                                            "If you're looking for how to use this bot:\n"
-                                            "1. Register in @AllkindsTeamBot\n"
-                                            "2. Find and get matched with someone\n"
-                                            "3. Use /start to see your active chats"
-                                        )
-                                        
-                                        # Try to check DB connection
-                                        try:
-                                            from src.db.base import get_async_session
-                                            from sqlalchemy import text
-                                            
-                                            # Create session
-                                            session_maker = get_async_session()
-                                            
-                                            # Test connection
-                                            async with session_maker() as sess:
-                                                result = await sess.execute(text("SELECT 1"))
-                                                response += "\n\nDatabase: Connected ✅"
-                                        except Exception as db_error:
-                                            logger.error(f"[WEBHOOK] DB error in ping: {db_error}")
-                                            db_error_str = str(db_error)
-                                            if len(db_error_str) > 50:
-                                                db_error_str = f"{db_error_str[:50]}..."
-                                            response += f"\n\nDatabase: Error ❌\n({db_error_str})"
-                                        
-                                        await bot.send_message(
-                                            chat_id=chat_id,
-                                            text=response
-                                        )
-                                        # Update throttling timestamp
-                                        last_message_time[chat_id] = now
-                                        
-                                        logger.info(f"[WEBHOOK] Direct response sent for /ping")
-                                        return web.Response(text='{"ok":true}', content_type='application/json')
-                                    except Exception as direct_error:
-                                        logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
+                                # For non-/start commands or if we haven't handled the command yet
+                                if text != "/start":
+                                    response = await direct_command_handler(text, chat_id, user_id, update_json)
+                                    if response:
+                                        return response
                         else:
                             # No text command to handle as fallback, try normal processing
                             update = types.Update.model_validate_json(data)
@@ -387,6 +246,113 @@ async def setup_webhook_server():
                 logger.error(f"[WEBHOOK] Outer traceback: {traceback.format_exc()}")
                 return web.Response(text='{"ok":false,"error":"Internal Server Error"}', 
                                    content_type='application/json', status=500)
+        
+        # Helper function to handle direct commands
+        async def direct_command_handler(text, chat_id, user_id, update_json):
+            """Handle direct commands without going through the dispatcher."""
+            logger.info(f"[WEBHOOK] Direct handling for command: {text}")
+            
+            # For critical commands, send direct response
+            if text.startswith("/start"):
+                try:
+                    # Simple fast response for /start without database lookups
+                    # This ensures the bot always responds to /start quickly
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text="Welcome to the Allkinds Chat Bot! 👋\n\n"
+                            "I'll help you chat anonymously with your matches.\n\n"
+                            "Just a moment while I check your information..."
+                    )
+                    logger.info(f"[WEBHOOK] Sent immediate /start response to {chat_id}")
+                    
+                    # Then try to get full user data in the background
+                    try:
+                        # Get user from database
+                        from src.db.repositories.user import user_repo
+                        from src.chat_bot.repositories import get_active_chats_for_user
+                        from src.db.base import get_async_session
+                        
+                        # Create session - with a very short timeout
+                        try:
+                            session_maker = get_async_session()
+                            
+                            user = None
+                            async with session_maker() as sess:
+                                user = await user_repo.get_by_telegram_id(sess, user_id)
+                            
+                            if not user:
+                                # Case 1: User not in DB
+                                await bot.send_message(
+                                    chat_id=chat_id,
+                                    text="You need to register in the main Allkinds bot first to use this service.\n\n"
+                                        "Please visit @AllkindsTeamBot to create your profile and find matches."
+                                )
+                            else:
+                                # User exists, check for active chats
+                                has_chats = False
+                                async with session_maker() as sess:
+                                    chats = await get_active_chats_for_user(sess, user.id)
+                                    has_chats = len(chats) > 0
+                                
+                                if not has_chats:
+                                    # Case 2: User in DB but no active chats
+                                    await bot.send_message(
+                                        chat_id=chat_id,
+                                        text="You don't have any active chats yet. To get started:\n"
+                                            "1. Go to @AllkindsTeamBot\n"
+                                            "2. Find a match with a compatible person\n"
+                                            "3. Come back here to chat anonymously"
+                                    )
+                                else:
+                                    # Case 3: User has active chats
+                                    await bot.send_message(
+                                        chat_id=chat_id,
+                                        text=f"Welcome back! You have {len(chats)} active {'chat' if len(chats) == 1 else 'chats'}.\n\n"
+                                            "Use the menu to navigate."
+                                    )
+                        except Exception as db_error:
+                            logger.error(f"[WEBHOOK] Database error in /start: {db_error}")
+                            # No need to send another message, we already sent the initial welcome
+                    except Exception as background_error:
+                        logger.error(f"[WEBHOOK] Background processing error in /start: {background_error}")
+                    
+                    return web.Response(text='{"ok":true}', content_type='application/json')
+                except Exception as direct_error:
+                    logger.error(f"[WEBHOOK] Direct response for /start failed: {direct_error}")
+            
+            elif text.startswith("/help"):
+                try:
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text="Need help? This bot lets you chat anonymously with your matches from the Allkinds main bot.",
+                        parse_mode="HTML"
+                    )
+                    logger.info(f"[WEBHOOK] Direct response sent for /help")
+                    return web.Response(text='{"ok":true}', content_type='application/json')
+                except Exception as direct_error:
+                    logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
+            
+            elif text.startswith("/ping"):
+                try:
+                    response = (
+                        "💡 Bot Status: Online\n\n"
+                        "This command confirms that the bot is running and can respond to your requests.\n\n"
+                        "If you're looking for how to use this bot:\n"
+                        "1. Register in @AllkindsTeamBot\n"
+                        "2. Find and get matched with someone\n"
+                        "3. Use /start to see your active chats"
+                    )
+                    
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text=response
+                    )
+                    logger.info(f"[WEBHOOK] Direct response sent for /ping")
+                    return web.Response(text='{"ok":true}', content_type='application/json')
+                except Exception as direct_error:
+                    logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
+            
+            return None
         
         async def root_handler(request):
             """Root path handler for diagnostics."""

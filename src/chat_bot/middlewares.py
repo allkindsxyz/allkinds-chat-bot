@@ -18,7 +18,7 @@ class DatabaseMiddleware(BaseMiddleware):
     def __init__(self):
         self.session_pool = {}
         self.retry_attempts = 3
-        self.session_timeout = 30  # seconds
+        self.session_timeout = 10  # Reduce timeout from 30 to 10 seconds
         logger.info("Database middleware initialized with retry logic")
         super().__init__()
     
@@ -41,7 +41,9 @@ class DatabaseMiddleware(BaseMiddleware):
                     engine = get_async_engine()
                 except Exception as e:
                     logger.error(f"Failed to create database engine: {e}")
-                    raise
+                    # Continue without a database session instead of raising
+                    # This allows commands like /start, /help to still work even with DB issues
+                    return await handler(event, data)
                 
                 # Create session with timeout
                 async_session = async_sessionmaker(
@@ -50,65 +52,60 @@ class DatabaseMiddleware(BaseMiddleware):
                 
                 # Create session with timeout protection
                 try:
-                    # Get a session factory
-                    session_factory = async_session()
+                    # Get a session factory - FIX: Don't call it as a function, just pass the factory
+                    session_factory = async_session
+                    
+                    # Create a real session from the factory
+                    session = session_factory()
                     
                     # Add session to the data dict
-                    data["session"] = session_factory
+                    data["session"] = session
                     
                     # Process handler
                     result = await handler(event, data)
                     
                     # Close session
-                    await session_factory.close()
+                    await session.close()
                     return result
                     
                 except asyncio.TimeoutError:
                     logger.error(f"Session creation timed out after {self.session_timeout}s (attempt {attempt+1}/{self.retry_attempts})")
                     if session:
                         await session.close()
-                    raise
+                    # Try again on timeout
+                    if attempt < self.retry_attempts - 1:
+                        await asyncio.sleep(1)  # Shorter delay for retries (was 2**attempt)
+                        continue
+                    else:
+                        # Fall through to handler without session on final timeout
+                        return await handler(event, data)
                     
             except asyncio.exceptions.CancelledError as e:
                 logger.warning(f"Database connection cancelled (attempt {attempt+1}/{self.retry_attempts}): {e}")
                 original_exc = e
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    await asyncio.sleep(1)  # Shorter delay
                     continue
                     
             except SQLAlchemyError as e:
                 logger.error(f"Database error (attempt {attempt+1}/{self.retry_attempts}): {e}")
                 original_exc = e
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    await asyncio.sleep(1)  # Shorter delay
                     continue
                     
             except Exception as e:
                 logger.error(f"Unexpected error in database middleware (attempt {attempt+1}/{self.retry_attempts}): {e}")
                 original_exc = e
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    await asyncio.sleep(1)  # Shorter delay
                     continue
                     
-        # All retries failed
-        logger.critical(f"All database connection attempts failed after {self.retry_attempts} retries")
+        # All retries failed - just proceed without a database session
+        logger.warning(f"Database connection failed after {self.retry_attempts} retries, proceeding without session")
         
-        # In production, we should handle this gracefully for the user
-        try:
-            if isinstance(event, types.Message) and event.text == "/start":
-                # Special handling for /start command to avoid bad user experience
-                await event.answer(
-                    "I'm currently experiencing technical difficulties connecting to the database. "
-                    "Please try again in a few minutes."
-                )
-            return None  # Return None to indicate middleware handled the response
-        except Exception as e:
-            logger.error(f"Failed to send error message to user: {e}")
-            
-        # Re-raise the original exception
-        if original_exc:
-            raise original_exc
-        raise RuntimeError("Failed to establish database connection")
+        # Continue with handler even without database to prevent bot from becoming unresponsive
+        return await handler(event, data)
 
 
 class LoggingMiddleware(BaseMiddleware):

@@ -18,7 +18,7 @@ from src.db.repositories.blocked_user_repo import blocked_user_repo
 
 # Message throttling system to prevent spam
 last_message_time = {}
-MESSAGE_THROTTLE_SECONDS = 5  # Only allow messages every 5 seconds to the same user
+MESSAGE_THROTTLE_SECONDS = 2  # Reduced from 5 to 2 seconds to improve responsiveness
 
 from .states import ChatState
 from .keyboards import (
@@ -1077,98 +1077,97 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
         
         logger.info(f"[START_TEXT] Direct text handler for /start command from user {message.from_user.id}")
         
-        # If we don't have a session, provide a generic welcome message
-        if not session:
-            await message.answer(
-                "Welcome to the Allkinds Chat Bot! 👋\n\n"
-                "This bot lets you chat anonymously with your matches from the Allkinds main bot.\n\n"
-                "To get started:\n"
-                "1. Find a match in @AllkindsTeamBot\n"
-                "2. Once matched, you'll receive a link to chat here\n\n"
-                "Need help? Type /help for assistance."
-            )
-            logger.info(f"[START_TEXT] Sent generic welcome message to user {message.from_user.id} (no session)")
-            # Update last message time
-            last_message_time[chat_id] = now
-            return
-            
-        # Get user from database
-        user = await user_repo.get_by_telegram_id(session, message.from_user.id)
-        logger.info(f"[START_TEXT] User lookup result: {user is not None}")
-        
-        if not user:
-            # Case 1: User not in DB
-            await message.answer(
-                "Welcome to the Allkinds Chat Bot! 👋\n\n"
-                "You need to register in the main Allkinds bot first to use this service.\n\n"
-                "Please visit @AllkindsTeamBot to create your profile and find matches."
-            )
-            logger.info(f"[START_TEXT] Sent 'not registered' message to user {message.from_user.id}")
-        else:
-            # User exists, check for active chats
-            all_chats = await get_active_chats_for_user(session, user.id)
-            logger.info(f"[START_TEXT] Found {len(all_chats)} active chats for user {user.id}")
-            
-            if not all_chats:
-                # Case 2: User in DB but no active chats
-                await message.answer(
-                    "Welcome to the Allkinds Chat Bot! 👋\n\n"
-                    "You don't have any active chats yet. To get started:\n"
-                    "1. Go to @AllkindsTeamBot\n"
-                    "2. Find a match with a compatible person\n"
-                    "3. Come back here to chat anonymously"
-                )
-                logger.info(f"[START_TEXT] Sent 'no chats' message to user {message.from_user.id}")
-            else:
-                # Case 3: User has active chats - show a main menu
-                if state:
-                    logger.info(f"[START_TEXT] User has chats, showing main menu")
-                    try:
-                        # Instead of importing show_main_menu, create a simple menu here
-                        from src.chat_bot.keyboards import get_main_menu_keyboard
-                        
-                        # Get unread count
-                        total_unread = 0
-                        for chat in all_chats:
-                            try:
-                                from src.chat_bot.repositories import get_unread_message_count
-                                unread = await get_unread_message_count(session, chat.id, user.id)
-                                total_unread += unread
-                            except Exception as unread_error:
-                                logger.error(f"[START_TEXT] Error getting unread count: {unread_error}")
-                        
-                        # Create menu text
-                        menu_text = (
-                            f"Welcome to the Allkinds Chat Bot, {user.first_name}! 👋\n\n"
-                            f"You have {len(all_chats)} active {'chat' if len(all_chats) == 1 else 'chats'}"
-                        )
-                        
-                        if total_unread > 0:
-                            menu_text += f" with {total_unread} unread {'message' if total_unread == 1 else 'messages'}"
-                            
-                        menu_text += "\n\nClick 'Select user to chat' to view your messages."
-                        
-                        await message.answer(
-                            menu_text,
-                            reply_markup=get_main_menu_keyboard()
-                        )
-                    except Exception as menu_error:
-                        logger.error(f"[START_TEXT] Error showing main menu: {menu_error}")
-                        # Fallback if menu creation fails
-                        await message.answer(
-                            "Welcome to the Allkinds Chat Bot! 👋\n\n"
-                            "You have active chats. Use /menu to navigate them."
-                        )
-                else:
-                    # Fallback if state is not available
-                    await message.answer(
-                        "Welcome to the Allkinds Chat Bot! 👋\n\n"
-                        "You have active chats. Use /menu to navigate."
-                    )
-                    logger.info(f"[START_TEXT] Sent 'has chats' message to user {message.from_user.id}")
+        # Send immediate welcome message to improve perceived responsiveness
+        immediate_message = await message.answer(
+            "Welcome to the Allkinds Chat Bot! 👋\n\n"
+            "I'll help you chat anonymously with your matches.\n\n"
+            "Just a moment while I check your information..."
+        )
         
         # Update last message time
         last_message_time[chat_id] = now
+        
+        # If we don't have a session, we're done
+        if not session:
+            logger.info(f"[START_TEXT] No session available for user {message.from_user.id}")
+            return
+        
+        try:    
+            # Get user from database
+            user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+            logger.info(f"[START_TEXT] User lookup result: {user is not None}")
+            
+            if not user:
+                # Case 1: User not in DB
+                await message.answer(
+                    "You need to register in the main Allkinds bot first to use this service.\n\n"
+                    "Please visit @AllkindsTeamBot to create your profile and find matches."
+                )
+                logger.info(f"[START_TEXT] Sent 'not registered' message to user {message.from_user.id}")
+            else:
+                # User exists, check for active chats
+                all_chats = await get_active_chats_for_user(session, user.id)
+                logger.info(f"[START_TEXT] Found {len(all_chats)} active chats for user {user.id}")
+                
+                if not all_chats:
+                    # Case 2: User in DB but no active chats
+                    await message.answer(
+                        "You don't have any active chats yet. To get started:\n"
+                        "1. Go to @AllkindsTeamBot\n"
+                        "2. Find a match with a compatible person\n"
+                        "3. Come back here to chat anonymously"
+                    )
+                    logger.info(f"[START_TEXT] Sent 'no chats' message to user {message.from_user.id}")
+                else:
+                    # Case 3: User has active chats - show a main menu
+                    if state:
+                        logger.info(f"[START_TEXT] User has chats, showing main menu")
+                        try:
+                            # Instead of importing show_main_menu, create a simple menu here
+                            from src.chat_bot.keyboards import get_main_menu_keyboard
+                            
+                            # Get unread count
+                            total_unread = 0
+                            for chat in all_chats:
+                                try:
+                                    from src.chat_bot.repositories import get_unread_message_count
+                                    unread = await get_unread_message_count(session, chat.id, user.id)
+                                    total_unread += unread
+                                except Exception as unread_error:
+                                    logger.error(f"[START_TEXT] Error getting unread count: {unread_error}")
+                            
+                            # Create menu text
+                            menu_text = (
+                                f"Welcome to the Allkinds Chat Bot, {user.first_name}! 👋\n\n"
+                                f"You have {len(all_chats)} active {'chat' if len(all_chats) == 1 else 'chats'}"
+                            )
+                            
+                            if total_unread > 0:
+                                menu_text += f" with {total_unread} unread {'message' if total_unread == 1 else 'messages'}"
+                                
+                            menu_text += "\n\nClick 'Select user to chat' to view your messages."
+                            
+                            await message.answer(
+                                menu_text,
+                                reply_markup=get_main_menu_keyboard()
+                            )
+                        except Exception as menu_error:
+                            logger.error(f"[START_TEXT] Error showing main menu: {menu_error}")
+                            # Fallback if menu creation fails
+                            await message.answer(
+                                f"Welcome back! You have {len(all_chats)} active {'chat' if len(all_chats) == 1 else 'chats'}.\n\n"
+                                "Use /menu to navigate them."
+                            )
+                    else:
+                        # Fallback if state is not available
+                        await message.answer(
+                            f"Welcome back! You have {len(all_chats)} active {'chat' if len(all_chats) == 1 else 'chats'}.\n\n"
+                            "Use /menu to navigate."
+                        )
+                        logger.info(f"[START_TEXT] Sent 'has chats' message to user {message.from_user.id}")
+        except Exception as db_error:
+            logger.error(f"[START_TEXT] Database error: {db_error}")
+            # We already sent the immediate welcome, so no need to send another message
     except Exception as e:
         logger.exception(f"[START_TEXT] Error in fallback start handler: {e}")
         await message.answer(
