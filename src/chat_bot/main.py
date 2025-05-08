@@ -208,7 +208,7 @@ async def setup_webhook_server():
         app.router.add_get("/ping", ping_handler)
         app.router.add_get("/health", health_handler)
         app.router.add_get("/", root_handler)
-        app.router.add_post("/comm_webhook", webhook_handler)
+        app.router.add_post("/chat_webhook", webhook_handler)
         
         # Start the server
         runner = web.AppRunner(app)
