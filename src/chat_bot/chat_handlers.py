@@ -1054,30 +1054,131 @@ async def handle_help(message: Message):
     await message.answer(help_text, parse_mode="HTML")
 
 @router.message(F.text == "/start")
-async def handle_start_text(message: Message):
+async def handle_start_text(message: Message, state: FSMContext = None, session: AsyncSession = None):
     """Direct text handler for /start command as a fallback."""
     try:
         logger.info(f"[START_TEXT] Direct text handler for /start command from user {message.from_user.id}")
         
-        await message.answer(
-            "Welcome to the Allkinds Chat Bot! 👋\n\n"
-            "This bot lets you chat anonymously with your matches from the Allkinds main bot.\n\n"
-            "To get started:\n"
-            "1. Find a match in @AllkindsTeamBot\n"
-            "2. Once matched, you'll receive a link to chat here\n\n"
-            "Need help? Type /help for assistance."
-        )
-        logger.info(f"[START_TEXT] Sent welcome message to user {message.from_user.id}")
+        # If we don't have a session, provide a generic welcome message
+        if not session:
+            await message.answer(
+                "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                "This bot lets you chat anonymously with your matches from the Allkinds main bot.\n\n"
+                "To get started:\n"
+                "1. Find a match in @AllkindsTeamBot\n"
+                "2. Once matched, you'll receive a link to chat here\n\n"
+                "Need help? Type /help for assistance."
+            )
+            logger.info(f"[START_TEXT] Sent generic welcome message to user {message.from_user.id} (no session)")
+            return
+            
+        # Get user from database
+        user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+        logger.info(f"[START_TEXT] User lookup result: {user is not None}")
+        
+        if not user:
+            # Case 1: User not in DB
+            await message.answer(
+                "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                "You need to register in the main Allkinds bot first to use this service.\n\n"
+                "Please visit @AllkindsTeamBot to create your profile and find matches."
+            )
+            logger.info(f"[START_TEXT] Sent 'not registered' message to user {message.from_user.id}")
+        else:
+            # User exists, check for active chats
+            all_chats = await get_active_chats_for_user(session, user.id)
+            logger.info(f"[START_TEXT] Found {len(all_chats)} active chats for user {user.id}")
+            
+            if not all_chats:
+                # Case 2: User in DB but no active chats
+                await message.answer(
+                    "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                    "You don't have any active chats yet. To get started:\n"
+                    "1. Go to @AllkindsTeamBot\n"
+                    "2. Find a match with a compatible person\n"
+                    "3. Come back here to chat anonymously"
+                )
+                logger.info(f"[START_TEXT] Sent 'no chats' message to user {message.from_user.id}")
+            else:
+                # Case 3: User has active chats - show a main menu
+                if state:
+                    logger.info(f"[START_TEXT] User has chats, showing main menu")
+                    try:
+                        # Instead of importing show_main_menu, create a simple menu here
+                        from src.chat_bot.keyboards import get_main_menu_keyboard
+                        
+                        # Get unread count
+                        total_unread = 0
+                        for chat in all_chats:
+                            try:
+                                from src.chat_bot.repositories import get_unread_message_count
+                                unread = await get_unread_message_count(session, chat.id, user.id)
+                                total_unread += unread
+                            except Exception as unread_error:
+                                logger.error(f"[START_TEXT] Error getting unread count: {unread_error}")
+                        
+                        # Create menu text
+                        menu_text = (
+                            f"Welcome to the Allkinds Chat Bot, {user.first_name}! 👋\n\n"
+                            f"You have {len(all_chats)} active {'chat' if len(all_chats) == 1 else 'chats'}"
+                        )
+                        
+                        if total_unread > 0:
+                            menu_text += f" with {total_unread} unread {'message' if total_unread == 1 else 'messages'}"
+                            
+                        menu_text += "\n\nClick 'Select user to chat' to view your messages."
+                        
+                        await message.answer(
+                            menu_text,
+                            reply_markup=get_main_menu_keyboard()
+                        )
+                    except Exception as menu_error:
+                        logger.error(f"[START_TEXT] Error showing main menu: {menu_error}")
+                        # Fallback if menu creation fails
+                        await message.answer(
+                            "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                            "You have active chats. Use /menu to navigate them."
+                        )
+                else:
+                    # Fallback if state is not available
+                    await message.answer(
+                        "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                        "You have active chats. Use /menu to navigate."
+                    )
+                    logger.info(f"[START_TEXT] Sent 'has chats' message to user {message.from_user.id}")
     except Exception as e:
         logger.exception(f"[START_TEXT] Error in fallback start handler: {e}")
-        await message.answer("Welcome to Allkinds Chat Bot! Type /help for assistance.")
+        await message.answer(
+            "Welcome to Allkinds Chat Bot! Type /help for assistance."
+        )
 
 @router.message(Command("ping"))
-async def handle_ping(message: Message):
+async def handle_ping(message: Message, state: FSMContext = None, session: AsyncSession = None, bot: Bot = None):
     """Simple ping command that doesn't require database access."""
     try:
         logger.info(f"[PING] Received ping command from user {message.from_user.id}")
-        await message.answer("Pong! The bot is running.")
+        
+        response = (
+            "💡 Bot Status: Online\n\n"
+            "This command confirms that the bot is running and can respond to your requests.\n\n"
+            "If you're looking for how to use this bot:\n"
+            "1. Register in @AllkindsTeamBot\n"
+            "2. Find and get matched with someone\n"
+            "3. Use /start to see your active chats"
+        )
+        
+        # Add database status if we have a session
+        if session:
+            try:
+                from sqlalchemy import text
+                result = await session.execute(text("SELECT 1"))
+                db_status = "Database: Connected ✅"
+            except Exception as e:
+                db_status = f"Database: Error ❌\n({str(e)[:50]}...)" if len(str(e)) > 50 else f"Database: Error ❌\n({str(e)})"
+            
+            response += f"\n\n{db_status}"
+        
+        await message.answer(response)
         logger.info(f"[PING] Responded to ping from user {message.from_user.id}")
     except Exception as e:
         logger.exception(f"[PING] Error in ping handler: {e}")

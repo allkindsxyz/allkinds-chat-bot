@@ -164,6 +164,7 @@ async def setup_webhook_server():
                             text = update_json["message"]["text"]
                             logger.info(f"[WEBHOOK] Message text: {text}")
                             user_id = update_json["message"].get("from", {}).get("id")
+                            chat_id = update_json["message"].get("chat", {}).get("id")
                             
                             # Try main processing path
                             try:
@@ -179,28 +180,131 @@ async def setup_webhook_server():
                                 logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
                                 
                                 # For critical commands, send direct response
-                                if text == "/start":
+                                if text.startswith("/start"):
                                     logger.info(f"[WEBHOOK] Direct handling for /start command")
                                     try:
-                                        await bot.send_message(
-                                            chat_id=user_id,
-                                            text="Welcome to the Allkinds Chat Bot! 👋\n\n"
-                                                "This bot lets you chat anonymously with your matches.\n\n"
-                                                "To get started, find a match in @AllkindsTeamBot."
-                                        )
+                                        # Get user from database
+                                        from src.db.repositories.user import user_repo
+                                        from src.chat_bot.repositories import get_active_chats_for_user
+                                        from src.db.base import get_async_session
+                                        
+                                        # Create session
+                                        session_maker = get_async_session()
+                                        
+                                        user = None
+                                        try:
+                                            # Try to get the user, but handle exceptions if DB isn't available
+                                            async with session_maker() as sess:
+                                                user = await user_repo.get_by_telegram_id(sess, user_id)
+                                        except Exception as db_error:
+                                            logger.error(f"[WEBHOOK] Database error when getting user: {db_error}")
+                                        
+                                        if not user:
+                                            # Case 1: User not in DB
+                                            await bot.send_message(
+                                                chat_id=chat_id,
+                                                text="Welcome to the Allkinds Chat Bot! 👋\n\n"
+                                                    "You need to register in the main Allkinds bot first to use this service.\n\n"
+                                                    "Please visit @AllkindsTeamBot to create your profile and find matches."
+                                            )
+                                        else:
+                                            # User exists, check for active chats
+                                            has_chats = False
+                                            try:
+                                                async with session_maker() as sess:
+                                                    chats = await get_active_chats_for_user(sess, user.id)
+                                                    has_chats = len(chats) > 0
+                                            except Exception as chat_error:
+                                                logger.error(f"[WEBHOOK] Error getting chats: {chat_error}")
+                                            
+                                            if not has_chats:
+                                                # Case 2: User in DB but no active chats
+                                                await bot.send_message(
+                                                    chat_id=chat_id,
+                                                    text="Welcome to the Allkinds Chat Bot! 👋\n\n"
+                                                        "You don't have any active chats yet. To get started:\n"
+                                                        "1. Go to @AllkindsTeamBot\n"
+                                                        "2. Find a match with a compatible person\n"
+                                                        "3. Come back here to chat anonymously"
+                                                )
+                                            else:
+                                                # Case 3: User has active chats
+                                                # Just send a simple welcome message, the proper menu will be displayed by the main handler
+                                                # if it recovers from the error
+                                                await bot.send_message(
+                                                    chat_id=chat_id,
+                                                    text="Welcome to the Allkinds Chat Bot! 👋\n\n"
+                                                        "You have active chats. Use the menu to navigate."
+                                                )
+                                        
                                         logger.info(f"[WEBHOOK] Direct response sent for /start")
+                                        return web.Response(text='{"ok":true}', content_type='application/json')
                                     except Exception as direct_error:
                                         logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
+                                        import traceback
+                                        logger.error(f"[WEBHOOK] Direct response traceback: {traceback.format_exc()}")
+                                        
+                                        # Try sending a simple message if DB access failed completely
+                                        try:
+                                            await bot.send_message(
+                                                chat_id=chat_id,
+                                                text="Welcome to the Allkinds Chat Bot! 👋\n\n"
+                                                    "If you're new here, please register in the main @AllkindsTeamBot first.\n\n"
+                                                    "If you're already registered, you can find matches in the main bot."
+                                            )
+                                        except Exception as fallback_error:
+                                            logger.error(f"[WEBHOOK] Even fallback greeting failed: {fallback_error}")
                                 
-                                elif text == "/help":
+                                elif text.startswith("/help"):
                                     logger.info(f"[WEBHOOK] Direct handling for /help command")
                                     try:
                                         await bot.send_message(
-                                            chat_id=user_id,
+                                            chat_id=chat_id,
                                             text="Need help? This bot lets you chat anonymously with your matches from the Allkinds main bot.",
                                             parse_mode="HTML"
                                         )
                                         logger.info(f"[WEBHOOK] Direct response sent for /help")
+                                        return web.Response(text='{"ok":true}', content_type='application/json')
+                                    except Exception as direct_error:
+                                        logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
+                                
+                                elif text.startswith("/ping"):
+                                    logger.info(f"[WEBHOOK] Direct handling for /ping command")
+                                    try:
+                                        response = (
+                                            "💡 Bot Status: Online\n\n"
+                                            "This command confirms that the bot is running and can respond to your requests.\n\n"
+                                            "If you're looking for how to use this bot:\n"
+                                            "1. Register in @AllkindsTeamBot\n"
+                                            "2. Find and get matched with someone\n"
+                                            "3. Use /start to see your active chats"
+                                        )
+                                        
+                                        # Try to check DB connection
+                                        try:
+                                            from src.db.base import get_async_session
+                                            from sqlalchemy import text
+                                            
+                                            # Create session
+                                            session_maker = get_async_session()
+                                            
+                                            # Test connection
+                                            async with session_maker() as sess:
+                                                result = await sess.execute(text("SELECT 1"))
+                                                response += "\n\nDatabase: Connected ✅"
+                                        except Exception as db_error:
+                                            logger.error(f"[WEBHOOK] DB error in ping: {db_error}")
+                                            db_error_str = str(db_error)
+                                            if len(db_error_str) > 50:
+                                                db_error_str = f"{db_error_str[:50]}..."
+                                            response += f"\n\nDatabase: Error ❌\n({db_error_str})"
+                                        
+                                        await bot.send_message(
+                                            chat_id=chat_id,
+                                            text=response
+                                        )
+                                        logger.info(f"[WEBHOOK] Direct response sent for /ping")
+                                        return web.Response(text='{"ok":true}', content_type='application/json')
                                     except Exception as direct_error:
                                         logger.error(f"[WEBHOOK] Even direct response failed: {direct_error}")
                         else:
