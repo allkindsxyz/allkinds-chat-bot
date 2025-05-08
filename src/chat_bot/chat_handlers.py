@@ -377,8 +377,36 @@ async def handle_start_without_link(
             )
             
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logger.exception(f"[START_CMD] Error in handle_start_without_link for user {message.from_user.id}: {e}")
-        await message.answer("An error occurred while processing your request. Please try again later.")
+        logger.error(f"[START_CMD] Error traceback: {error_trace}")
+        
+        # More user-friendly response based on error type
+        if "no such table" in str(e).lower() or "relation" in str(e).lower():
+            await message.answer("Database setup issue. The bot is still being configured. Please try again later.")
+        elif "connection" in str(e).lower() or "timeout" in str(e).lower():
+            await message.answer("Database connection issue. Please try again in a few moments.")
+        elif "not found" in str(e).lower() or "does not exist" in str(e).lower():
+            await message.answer("Resource not found. Please try again later or contact support.")
+        else:
+            # Generic error message
+            await message.answer("An error occurred while processing your request. Please try again later.")
+        
+        # Also try a simplified flow that bypasses most database operations
+        try:
+            logger.info(f"[START_CMD] Trying simplified fallback for user {message.from_user.id}")
+            await message.answer(
+                "Welcome to the Allkinds Chat Bot! 👋\n\n"
+                "This bot lets you chat anonymously with your matches.\n\n"
+                "To get started:\n"
+                "1. Find a match in @AllkindsTeamBot\n"
+                "2. Once matched, you'll receive a link to chat here\n\n"
+                "Need help? Type /help for assistance."
+            )
+            logger.info(f"[START_CMD] Fallback message sent successfully to {message.from_user.id}")
+        except Exception as inner_e:
+            logger.error(f"[START_CMD] Even simplified fallback failed: {inner_e}")
 
 
 # Select chat partner
