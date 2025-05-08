@@ -13,7 +13,6 @@ from sqlalchemy.future import select
 from typing import List, Optional, Tuple, Dict, Any
 
 from src.core.config import get_settings
-from src.db.models import GroupMember, Answer, Question
 from src.core.diagnostics import track_db
 from src.db.utils.session_management import ensure_active_session, with_retry
 

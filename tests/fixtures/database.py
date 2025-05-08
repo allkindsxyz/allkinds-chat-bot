@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import event
 
 from src.db.base import Base
-from src.db.models import User, Group, Question, Answer, GroupMember, MemberRole
+from src.db.models import User, Match, AnonymousChatSession, ChatMessage
 
 @pytest.fixture
 async def test_engine():
@@ -56,36 +56,38 @@ async def test_user(test_session):
     return user
 
 @pytest.fixture
-async def test_group(test_session, test_user):
-    """Create a test group in the database."""
-    group = Group(
-        name="Test Group",
-        description="A test group for automated testing",
-        creator_id=test_user.id,
+async def test_user2(test_session):
+    """Create a second test user in the database."""
+    user = User(
+        telegram_id=987654321,
+        first_name="Another",
+        last_name="User",
+        username="anotheruser",
     )
-    test_session.add(group)
+    test_session.add(user)
     await test_session.commit()
-    
-    # Add the user as an admin of the group
-    member = GroupMember(
-        user_id=test_user.id,
-        group_id=group.id,
-        role=MemberRole.ADMIN,
-    )
-    test_session.add(member)
-    await test_session.commit()
-    
-    return group
+    return user
 
 @pytest.fixture
-async def test_question(test_session, test_user, test_group):
-    """Create a test question in the database."""
-    question = Question(
-        text="Is this a test question?",
-        author_id=test_user.id,
-        group_id=test_group.id,
-        category="Test",
+async def test_match(test_session, test_user, test_user2):
+    """Create a test match between users."""
+    match = Match(
+        user1_id=test_user.id,
+        user2_id=test_user2.id,
+        group_id=1,
+        score=0.85
     )
-    test_session.add(question)
+    test_session.add(match)
     await test_session.commit()
-    return question 
+    return match
+
+@pytest.fixture
+async def test_chat_session(test_session, test_match):
+    """Create a test chat session."""
+    chat_session = AnonymousChatSession(
+        match_id=test_match.id,
+        status="active"
+    )
+    test_session.add(chat_session)
+    await test_session.commit()
+    return chat_session 
