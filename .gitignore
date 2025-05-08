@@ -1,0 +1,194 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Poetry
+poetry.lock
+
+# SQLite database
+*.db
+
+# Logs directory
+logs/
+
+# Bot-specific
+bot.lock
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Runtime files
+*.pid
+
+# Environment variables and credentials
+.env.*
+!.env.example
+temp_env*
+*env.temp
+*_env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.backup
+*.env.bak
+
+# Logs and debugging
+*.log.*
+debug_logs/
+railway_logs.txt
+*_debug_*
+diagnostic_reports/
+debug_*.txt
+debug_*.json
+
+# Telegram bot specific
+*.session
+*.session-journal
+*.pid
+telegram_api_keys.txt
+
+# Sensitive files that might contain tokens
+*token*.py
+!src/core/token_validator.py
+*_token.py
+*key*.txt
+*secret*.txt
+*credentials*.txt
+*credentials*.json
+*secret*.json
+*api_key*.txt
+*api_key*.json
+*password*.txt
+*password*.json
+
+# Backup files
+*.bak
+*.backup
+*.swp
+*.old
+*.orig
+
+# Security-related files
+token_scan_results.txt
+sensitive_files_list.txt
+
+# Database dumps and backups
+*.dump
+*.sql
+*db.backup
+
+# Security tools
+scan_for_tokens.py
+remove_sensitive_files.py
+enhance_credentials.py
+secure_codebase.py
+SECURITY_REPORT.md
+
+# Specific files to be removed
+fix_chat_bot_config.py
+deploy_railway_fix.py
+test_token.py
+start_main_bot_only.sh
+direct_reset_webhook.py
+
+# Temporary and fix scripts
+fix_*.py
+temp_*.py
+*_fix.py
+*_temp.py
+tmp_*.py
+*.tmp
+
+# Remove the removal script itself once done
+remove_temp_and_sensitive.py
+temp_files_to_remove.txt
