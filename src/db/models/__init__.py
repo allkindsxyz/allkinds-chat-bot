@@ -5,6 +5,7 @@ from src.db.models.chat_message import ChatMessage
 from src.db.models.blocked_user import BlockedUser
 from src.db.models.chat import Chat
 from src.db.models.user_state import UserState
+from src.db.models.group_member import GroupMember
 
 __all__ = [
     "User",
@@ -14,4 +15,5 @@ __all__ = [
     "BlockedUser",
     "Chat",
     "UserState",
+    "GroupMember",
 ] 
