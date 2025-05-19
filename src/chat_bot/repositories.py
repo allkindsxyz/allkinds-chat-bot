@@ -7,7 +7,7 @@ from typing import List, Optional, Union, Any
 from src.db.models import (
     User, Match, Chat,
     ChatMessage, BlockedUser,
-    AnonymousChatSession
+    AnonymousChatSession, GroupMember
 )
 from src.db.repositories.user import user_repo
 from src.db.repositories.match_repo import get_match_between_users
@@ -149,26 +149,13 @@ async def get_unread_messages(session: AsyncSession, chat_id: int, user_id: int)
 
 async def get_partner_nickname(session: AsyncSession, user_id: int) -> str:
     """
-    Get nickname for a user, falling back to first_name if not available.
-    
-    Args:
-        session: Database session
-        user_id: ID of the user
-        
-    Returns:
-        Nickname or user's first name
+    Get nickname for a user from group_members.
     """
-    user = await user_repo.get(session, user_id)
-    if not user:
-        return "Unknown User"
-    
-    # Return user's first name or username as default
-    if user.first_name:
-        return user.first_name
-    elif user.username:
-        return user.username
-    else:
-        return f"User {user_id}"
+    result = await session.execute(select(GroupMember).where(GroupMember.user_id == user_id))
+    group_member = result.scalar_one_or_none()
+    if group_member and group_member.nickname:
+        return group_member.nickname
+    return f"User {user_id}"
 
 
 async def end_chat_session(session: AsyncSession, chat_id: int) -> bool:

@@ -5,7 +5,7 @@
     "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "python -m src.main",
+    "startCommand": "python -m src.db.migrations.run_all && python -m src.chat_bot.main",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicy": "on-failure",

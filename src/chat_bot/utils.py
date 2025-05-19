@@ -80,9 +80,7 @@ async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
             )
         
         # Format name
-        partner_name = partner.first_name
-        if partner.last_name:
-            partner_name += f" {partner.last_name}"
+        partner_name = await get_partner_nickname(session, partner_id)
         
         match_users.append({
             "id": partner_id,

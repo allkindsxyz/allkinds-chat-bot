@@ -15,8 +15,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    first_name: Mapped[str] = mapped_column(String(64))
-    last_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # first_name: Mapped[str] = mapped_column(String(64))
+    # last_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     
     # User state
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

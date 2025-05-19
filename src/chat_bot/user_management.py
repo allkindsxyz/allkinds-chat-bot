@@ -142,7 +142,6 @@ async def on_show_username(callback: CallbackQuery, state: FSMContext, session: 
     
     await callback.message.edit_text(
         f"User information for {partner_name}:\n\n"
-        f"Name: {partner.first_name} {partner.last_name or ''}\n"
         f"Username: {username}\n\n"
         f"You can now contact them directly on Telegram.",
         reply_markup=get_user_management_keyboard(partner_id)
@@ -155,7 +154,7 @@ async def on_show_username(callback: CallbackQuery, state: FSMContext, session: 
             bot = callback.bot
             await bot.send_message(
                 partner_tg_id,
-                f"{user.first_name} has viewed your Telegram username."
+                f"Your Telegram username was viewed."
             )
         except Exception as e:
             logger.error(f"Failed to notify user {partner_tg_id}: {e}")

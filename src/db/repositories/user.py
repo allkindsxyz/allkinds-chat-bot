@@ -21,8 +21,6 @@ class UserRepository(BaseRepository[User]):
             telegram_id=telegram_user["id"],
             defaults={
                 "username": telegram_user.get("username"),
-                "first_name": telegram_user["first_name"],
-                "last_name": telegram_user.get("last_name"),
                 "is_active": True,
                 "points": 0,
             }
