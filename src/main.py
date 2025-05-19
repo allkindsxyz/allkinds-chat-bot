@@ -40,10 +40,10 @@ if IS_RAILWAY:
             logger.info(f"  {key}: [REDACTED]")
         else:
             logger.info(f"  {key}: {os.environ[key]}")
-
+    
 # Add debugging prints to track startup process
 logger.info("==== STARTUP TRACKING: Starting import phases ====")
-
+    
 # Import must be done after logging setup
 try:
     logger.info("==== STARTUP TRACKING: Importing chat_bot.main ====")
@@ -61,59 +61,70 @@ except Exception as e:
 
 logger.info("==== STARTUP TRACKING: All imports successful ====")
 
+logger.info("==== MIGRATIONS: Running database migrations before starting bot ====")
+try:
+    from src.db.migrations.run_all import run_migrations
+    run_migrations()
+    logger.info("==== MIGRATIONS: All migrations applied successfully ====")
+except Exception as e:
+    logger.critical(f"==== MIGRATIONS: Migration failed: {e} ====")
+    import traceback
+    logger.critical(traceback.format_exc())
+    sys.exit(1)
+
 def get_webhook_url():
     """Get the webhook URL based on environment variables."""
     try:
         logger.info("==== STARTUP TRACKING: Getting webhook URL ====")
         settings = get_settings()
-        
+
         # In Railway, we use RAILWAY_PUBLIC_DOMAIN
         if os.environ.get("RAILWAY_PUBLIC_DOMAIN"):
             host = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
             logger.info(f"Using webhook host from environment: {host}")
             return f"https://{host}/chat_webhook"
-        
+
         # Also try RAILWAY_STATIC_URL as fallback
         if os.environ.get("RAILWAY_STATIC_URL"):
             host = os.environ.get("RAILWAY_STATIC_URL")
             logger.info(f"Using Railway static URL as webhook host: {host}")
             return f"https://{host}/chat_webhook"
-        
+
         # Otherwise use the regular settings
         if settings.use_webhook and settings.webhook_host:
             logger.info(f"Using webhook host from settings: {settings.webhook_host}")
             return f"{settings.webhook_host}{settings.webhook_path}"
-        
+
         return None
     except Exception as e:
         logger.error(f"Error getting webhook URL: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return None
-
+    
 async def setup_simple_health_check():
     """Setup a simple health check endpoint for Railway."""
     try:
         logger.info("==== STARTUP TRACKING: Setting up health check server ====")
         from aiohttp import web
-        
+
         async def health_handler(request):
             return web.json_response({
                 "status": "ok",
                 "service": "allkinds-chat-bot",
                 "version": "1.0.0"
             })
-        
+
         app = web.Application()
         app.router.add_get('/health', health_handler)
-        
+
         port = int(os.environ.get("PORT", 8080))
-        
+
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', port)
         await site.start()
-        
+
         logger.info(f"Health check server running on port {port}")
         return site, runner
     except Exception as e:
@@ -134,11 +145,11 @@ async def main():
         if IS_RAILWAY:
             for env_var in ["RAILWAY_PUBLIC_DOMAIN", "RAILWAY_STATIC_URL", "PORT"]:
                 logger.info(f"  {env_var}: {os.environ.get(env_var)}")
-        
+            
         # Get webhook URL
         webhook_url = get_webhook_url()
         logger.info(f"==== STARTUP TRACKING: Webhook URL: {webhook_url} ====")
-        
+    
         # Skip setting up health check server since chat bot will handle it
         logger.info("==== STARTUP TRACKING: Skipping separate health check server, webhook server will handle health checks ====")
         
@@ -155,7 +166,7 @@ async def main():
         if not token:
             logger.critical("No bot token found in environment variables (checked CHAT_BOT_TOKEN and BOT_TOKEN). Cannot start the bot.")
             sys.exit(1)
-            
+
         # Set the token in the environment for the chat bot to find
         os.environ["CHAT_BOT_TOKEN"] = token
         
@@ -197,7 +208,7 @@ def main_cli():
         logger.error(f"Unhandled exception: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        sys.exit(1)
+        sys.exit(1) 
 
 if __name__ == "__main__":
     asyncio.run(main()) 
