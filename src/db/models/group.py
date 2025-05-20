@@ -13,7 +13,7 @@ class Group(Base):
     __tablename__ = "groups"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    creator_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    creator_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     
     # Group details
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -32,7 +32,7 @@ class Group(Base):
     )
     
     # Relationships
-    creator = relationship("User", back_populates="created_groups")
+    creator = relationship("User", back_populates="created_groups", foreign_keys=[creator_user_id])
     # questions = relationship("Question", back_populates="group", cascade="all, delete-orphan")
     members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
     chats = relationship("Chat", back_populates="group", cascade="all, delete-orphan")

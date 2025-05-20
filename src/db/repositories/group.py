@@ -37,7 +37,7 @@ class GroupRepository(BaseRepository[Group]):
         """Get all groups a user belongs to (including as creator or member)."""
         # First, get groups where user is creator
         creator_query = select(Group).where(
-            Group.creator_id == user_id,
+            Group.creator_user_id == user_id,
             Group.is_active == True  # Only get active groups
         )
         creator_result = await session.execute(creator_query)
@@ -117,7 +117,7 @@ class GroupRepository(BaseRepository[Group]):
         """Check if a user is the creator of a group."""
         query = select(exists().where(
             (Group.id == group_id) & 
-            (Group.creator_id == user_id)
+            (Group.creator_user_id == user_id)
         ))
         result = await session.execute(query)
         return result.scalar_one()
