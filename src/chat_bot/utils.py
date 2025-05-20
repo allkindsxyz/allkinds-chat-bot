@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, or_
 from loguru import logger
 
-from src.db.models import User, Match, AnonymousChatSession, ChatMessage
+from src.db.models import User, Match, ChatMessage
 from src.db.repositories import (
     user_repo, create_chat_session, get_by_match_id, get_partner_id,
     get_active_session_for_user, get_by_session_id, update_status,

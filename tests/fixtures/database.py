@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import event
 
 from src.db.base import Base
-from src.db.models import User, Match, AnonymousChatSession, ChatMessage
+from src.db.models import User, Match, ChatMessage
 
 @pytest.fixture
 async def test_engine():
@@ -79,15 +79,4 @@ async def test_match(test_session, test_user, test_user2):
     )
     test_session.add(match)
     await test_session.commit()
-    return match
-
-@pytest.fixture
-async def test_chat_session(test_session, test_match):
-    """Create a test chat session."""
-    chat_session = AnonymousChatSession(
-        match_id=test_match.id,
-        status="active"
-    )
-    test_session.add(chat_session)
-    await test_session.commit()
-    return chat_session 
+    return match 

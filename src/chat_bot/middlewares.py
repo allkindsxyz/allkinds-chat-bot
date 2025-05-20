@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 import os
 
 from src.core.config import get_settings
-from src.db.models import AnonymousChatSession
 from src.db.repositories.user import user_repo
 from src.db.base import get_async_engine
 

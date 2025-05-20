@@ -12,7 +12,6 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    chat_session_id: Mapped[int] = mapped_column(ForeignKey("anonymous_chat_sessions.id"))
     sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     content_type: Mapped[str] = mapped_column(String(20))  # text, photo, sticker, etc.
     text_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -21,5 +20,4 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    chat_session = relationship("AnonymousChatSession", back_populates="messages")
     sender = relationship("User", back_populates="sent_messages") 

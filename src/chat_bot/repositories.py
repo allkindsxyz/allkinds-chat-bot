@@ -7,7 +7,7 @@ from typing import List, Optional, Union, Any
 from src.db.models import (
     User, Match, Chat,
     ChatMessage, BlockedUser,
-    AnonymousChatSession, GroupMember
+    GroupMember
 )
 from src.db.repositories.user import user_repo
 from src.db.repositories.match_repo import get_match_between_users

@@ -44,10 +44,6 @@ class User(Base):
     matches_as_user1 = relationship("Match", foreign_keys="Match.user1_id", back_populates="user1")
     matches_as_user2 = relationship("Match", foreign_keys="Match.user2_id", back_populates="user2")
     
-    # Chat session relationships
-    initiated_chats = relationship("AnonymousChatSession", foreign_keys="AnonymousChatSession.initiator_id", back_populates="initiator")
-    received_chats = relationship("AnonymousChatSession", foreign_keys="AnonymousChatSession.recipient_id", back_populates="recipient")
-    
     # Group chat relationships
     # initiated_group_chats = relationship("Chat", foreign_keys="Chat.initiator_id", back_populates="initiator")
     # received_group_chats = relationship("Chat", foreign_keys="Chat.recipient_id", back_populates="recipient")

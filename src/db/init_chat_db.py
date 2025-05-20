@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy import text
 
 from src.db.base import async_session_maker, get_async_engine
-from src.db.models import AnonymousChatSession, ChatMessage, User, Match, BlockedUser, Chat
+from src.db.models import ChatMessage, User, Match, BlockedUser, Chat
 
 
 async def setup_chat_db(engine: AsyncEngine):
@@ -33,7 +33,6 @@ async def setup_chat_db(engine: AsyncEngine):
                 
                 # Get the table objects from models
                 tables = [
-                    AnonymousChatSession.__table__,
                     ChatMessage.__table__,
                     BlockedUser.__table__,
                     Chat.__table__,

@@ -25,4 +25,4 @@ class Match(Base):
     # group = relationship("Group", back_populates="matches")
     
     # Add relationship to AnonymousChatSession
-    chat_sessions = relationship("AnonymousChatSession", back_populates="match") 
+    # chat_sessions = relationship("AnonymousChatSession", back_populates="match") 
