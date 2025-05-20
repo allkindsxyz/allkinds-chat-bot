@@ -37,7 +37,7 @@ class User(Base):
     bio: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Relationships
-    created_groups = relationship("Group", back_populates="creator")
+    # created_groups = relationship("Group", back_populates="creator")
     group_memberships = relationship("GroupMember", back_populates="user")
     
     # Match relationships
@@ -49,8 +49,8 @@ class User(Base):
     received_chats = relationship("AnonymousChatSession", foreign_keys="AnonymousChatSession.recipient_id", back_populates="recipient")
     
     # Group chat relationships
-    initiated_group_chats = relationship("Chat", foreign_keys="Chat.initiator_id", back_populates="initiator")
-    received_group_chats = relationship("Chat", foreign_keys="Chat.recipient_id", back_populates="recipient")
+    # initiated_group_chats = relationship("Chat", foreign_keys="Chat.initiator_id", back_populates="initiator")
+    # received_group_chats = relationship("Chat", foreign_keys="Chat.recipient_id", back_populates="recipient")
     
     # Chat message relationship
     sent_messages = relationship("ChatMessage", back_populates="sender")
