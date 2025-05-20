@@ -37,7 +37,7 @@ class User(Base):
     bio: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Relationships
-    # created_groups = relationship("Group", back_populates="creator")
+    created_groups = relationship("Group", back_populates="creator", cascade="all, delete-orphan")
     group_memberships = relationship("GroupMember", back_populates="user")
     
     # Match relationships
