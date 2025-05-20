@@ -22,4 +22,4 @@ class Chat(Base):
     # Relationships
     # initiator = relationship("User", foreign_keys=[initiator_id], back_populates="initiated_group_chats")
     # recipient = relationship("User", foreign_keys=[recipient_id], back_populates="received_group_chats")
-    # group = relationship("Group", back_populates="chats") 
+    group = relationship("Group", back_populates="chats") 
