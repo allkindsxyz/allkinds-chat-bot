@@ -28,7 +28,7 @@ class GroupMember(Base):
     nickname = Column(String(32), nullable=True)
 
     user = relationship("User", back_populates="group_memberships")
-    group = relationship("Group", back_populates="members")
+    # group = relationship("Group", back_populates="members")
 
     def __repr__(self):
         return f"<GroupMember {self.id}: {self.user_id} in {self.group_id} as {self.role}>" 
