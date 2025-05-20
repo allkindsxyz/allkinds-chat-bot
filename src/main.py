@@ -64,7 +64,7 @@ logger.info("==== STARTUP TRACKING: All imports successful ====")
 # Автоматически применяем миграции перед стартом приложения
 try:
     from src.db.apply_migrations import main as apply_migrations_main
-    asyncio.run(apply_migrations_main())
+    apply_migrations_main()
 except Exception as e:
     import sys
     print(f"[CRITICAL] Failed to apply migrations: {e}", file=sys.stderr)
