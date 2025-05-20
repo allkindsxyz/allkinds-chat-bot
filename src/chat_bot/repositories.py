@@ -220,41 +220,4 @@ async def get_unread_chat_summary(session: AsyncSession, user_id: int) -> List[d
     # Sort by unread count (highest first)
     result.sort(key=lambda x: x["unread_count"], reverse=True)
     
-    return result
-
-
-async def get_chat_session_by_match(session: AsyncSession, match_id: int) -> Optional[AnonymousChatSession]:
-    """
-    Get an active chat session for a specific match.
-    
-    Args:
-        session: Database session
-        match_id: ID of the match
-        
-    Returns:
-        AnonymousChatSession object if found, None otherwise
-    """
-    from loguru import logger
-    
-    logger.info(f"Looking for chat session with match_id={match_id}")
-    
-    try:
-        query = select(AnonymousChatSession).where(
-            and_(
-                AnonymousChatSession.match_id == match_id,
-                AnonymousChatSession.status == "active"
-            )
-        )
-        
-        result = await session.execute(query)
-        chat_session = result.scalars().first()
-        
-        if chat_session:
-            logger.info(f"Found chat session: id={chat_session.id}, session_id={chat_session.session_id}")
-        else:
-            logger.info(f"No active chat session found for match_id={match_id}")
-            
-        return chat_session
-    except Exception as e:
-        logger.error(f"Error fetching chat session by match: {e}")
-        return None 
+    return result 
