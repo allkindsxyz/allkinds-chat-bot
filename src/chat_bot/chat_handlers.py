@@ -169,7 +169,6 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                 chat = await find_or_create_chat(session, initiator.id, match_user.id, match.group_id)
                 partner = match_user if user_id == initiator_telegram_user_id else initiator
                 partner_name = gm2.nickname if user_id == initiator_telegram_user_id else gm1.nickname
-                partner_photo = gm2.photo_url if user_id == initiator_telegram_user_id else gm1.photo_url
                 await state.set_state(ChatState.in_chat)
                 await state.update_data({
                     "chat_id": chat.id,
@@ -177,10 +176,7 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                 })
                 info = f"<b>Group:</b> {group.name}\n"
                 info += f"<b>Your partner:</b> {partner_name or 'No nickname'}\n"
-                if partner_photo:
-                    await message.answer_photo(partner_photo, caption=info)
-                else:
-                    await message.answer(info)
+                await message.answer(info)
                 await message.answer(
                     f"Connected with {partner_name}!\n\n"
                     "Your messages will be forwarded to your match.",
