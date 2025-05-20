@@ -1,7 +1,6 @@
 from .base import BaseRepository
 from .user import user_repo
 from .match_repo import *
-from .chat_session_repo import *
 from .chat_repo import get_chat_by_participants
 from .blocked_user_repo import *
 
