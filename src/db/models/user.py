@@ -37,7 +37,6 @@ class User(Base):
     bio: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Relationships
-    answers = relationship("Answer", back_populates="user")
     created_groups = relationship("Group", back_populates="creator")
     group_memberships = relationship("GroupMember", back_populates="user")
     
