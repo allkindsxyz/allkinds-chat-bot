@@ -23,9 +23,9 @@ class Group(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    # updated_at: Mapped[datetime] = mapped_column(
+    #     DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    # )
     
     # Relationships
     creator = relationship("User", back_populates="created_groups", foreign_keys=[creator_user_id])
