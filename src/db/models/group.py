@@ -19,9 +19,6 @@ class Group(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    # Group status
-    is_private: Mapped[bool] = mapped_column(Boolean, default=False)
-    
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
