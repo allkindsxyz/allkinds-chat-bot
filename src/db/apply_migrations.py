@@ -7,6 +7,11 @@ import asyncio
 DB_URL = os.environ.get("DATABASE_URL")
 if not DB_URL:
     raise RuntimeError("DATABASE_URL not set")
+# Автоматически исправляем префикс для asyncpg
+if DB_URL.startswith("postgresql://"):
+    DB_URL = DB_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif DB_URL.startswith("postgres://"):
+    DB_URL = DB_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
 engine = create_async_engine(DB_URL, future=True)
 
