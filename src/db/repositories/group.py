@@ -163,8 +163,8 @@ class GroupRepository(BaseRepository[Group]):
                     # Try to access the attributes, handle AttributeError if they don't exist
                     try:
                         nickname = getattr(member, "nickname", None)
-                        photo_file_id = getattr(member, "photo_file_id", None)
-                        logger.info(f"Member attributes: nickname={nickname}, photo_file_id={photo_file_id}")
+                        photo_url = getattr(member, "photo_url", None)
+                        logger.info(f"Member attributes: nickname={nickname}, photo_url={photo_url}")
                     except AttributeError as attr_err:
                         logger.warning(f"Some attributes not available on GroupMember: {attr_err}")
                 else:
@@ -174,7 +174,7 @@ class GroupRepository(BaseRepository[Group]):
                 
             except Exception as e:
                 # If there's an error about missing columns
-                if "column group_members.nickname does not exist" in str(e) or "column group_members.photo_file_id does not exist" in str(e):
+                if "column group_members.nickname does not exist" in str(e) or "column group_members.photo_url does not exist" in str(e):
                     logger.warning(f"Database schema missing columns. Using simplified query: {e}")
                     
                     # Try with explicit column selection without the missing ones
@@ -216,7 +216,7 @@ class GroupRepository(BaseRepository[Group]):
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
-    async def set_member_profile(self, session: AsyncSession, user_id: int, group_id: int, nickname: str, photo_file_id: str | None = None) -> GroupMember:
+    async def set_member_profile(self, session: AsyncSession, user_id: int, group_id: int, nickname: str, photo_url: str | None = None) -> GroupMember:
         """Set or update a group member's profile (nickname and photo)."""
         from loguru import logger
         
@@ -231,7 +231,7 @@ class GroupRepository(BaseRepository[Group]):
             try:
                 # Update member profile directly on the object
                 member.nickname = nickname
-                member.photo_file_id = photo_file_id
+                member.photo_url = photo_url
                 
                 # Commit the changes
                 await session.commit()
@@ -242,7 +242,7 @@ class GroupRepository(BaseRepository[Group]):
                 return member
             except Exception as e:
                 # Check if it's a missing column error
-                if "column group_members.nickname does not exist" in str(e) or "column group_members.photo_file_id does not exist" in str(e):
+                if "column group_members.nickname does not exist" in str(e) or "column group_members.photo_url does not exist" in str(e):
                     logger.warning(f"Database schema missing columns. Attempting to migrate: {e}")
                     
                     # Try to add the missing columns
@@ -265,14 +265,14 @@ class GroupRepository(BaseRepository[Group]):
                                 FROM pragma_table_info('group_members') 
                                 WHERE name = 'nickname';
                                 
-                                -- Check if photo_file_id column exists
+                                -- Check if photo_url column exists
                                 SELECT CASE 
                                     WHEN COUNT(*) = 0 THEN (
-                                        ALTER TABLE group_members ADD COLUMN photo_file_id VARCHAR(255)
+                                        ALTER TABLE group_members ADD COLUMN photo_url VARCHAR(255)
                                     )
                                 END
                                 FROM pragma_table_info('group_members') 
-                                WHERE name = 'photo_file_id';
+                                WHERE name = 'photo_url';
                                 
                                 COMMIT;
                             """))
@@ -289,11 +289,11 @@ class GroupRepository(BaseRepository[Group]):
                                     ALTER TABLE group_members ADD COLUMN nickname VARCHAR(32);
                                   END IF;
                                   
-                                  -- Add photo_file_id column if it doesn't exist
+                                  -- Add photo_url column if it doesn't exist
                                   IF NOT EXISTS(SELECT column_name 
                                                FROM information_schema.columns 
-                                               WHERE table_name = 'group_members' AND column_name = 'photo_file_id') THEN
-                                    ALTER TABLE group_members ADD COLUMN photo_file_id VARCHAR(255);
+                                               WHERE table_name = 'group_members' AND column_name = 'photo_url') THEN
+                                    ALTER TABLE group_members ADD COLUMN photo_url VARCHAR(255);
                                   END IF;
                                 END $$;
                             """))
@@ -314,7 +314,7 @@ class GroupRepository(BaseRepository[Group]):
                             (GroupMember.group_id == group_id)
                         ).values(
                             nickname=nickname,
-                            photo_file_id=photo_file_id
+                            photo_url=photo_url
                         )
                         
                         await session.execute(stmt)
