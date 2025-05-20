@@ -18,6 +18,8 @@ class ChatMessage(Base):
     file_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # For media files
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    chat_id: Mapped[int] = mapped_column(ForeignKey("chats.id"))
     
     # Relationships
-    sender = relationship("User", back_populates="sent_messages") 
+    sender = relationship("User", back_populates="sent_messages")
+    chat = relationship("Chat", back_populates="messages") 
