@@ -9,6 +9,7 @@ engine = create_engine(sync_db_url)
 
 # Список всех миграций по порядку (добавляй новые сюда)
 MIGRATIONS = [
+    "m2024_01_create_matches_table",
     "m2024_07_chatbot_core_tables",
     "m2024_08_add_telegram_id_to_users",
     "m2024_09_add_username_to_users",
