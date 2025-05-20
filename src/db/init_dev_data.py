@@ -21,7 +21,7 @@ async def init_dev_data():
     async with engine.begin() as conn:
         # Create a test user
         test_user = User(
-            telegram_id=179382367,  # Your Telegram ID from .env
+            telegram_user_id=179382367,  # Your Telegram ID from .env
             username="test_user",
             first_name="Test",
             last_name="User",
