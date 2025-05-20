@@ -59,4 +59,4 @@ class User(Base):
     states: Mapped[List["UserState"]] = relationship("UserState", back_populates="user")
     
     def __repr__(self) -> str:
-        return f"<User {self.id} ({self.telegram_user_id}): {self.first_name}>" 
+        return f"<User {self.id} ({self.telegram_user_id})>" 
