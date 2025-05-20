@@ -27,7 +27,6 @@ async def create_match(
     user1_id: int,
     user2_id: int,
     group_id: int,
-    score: float,
     common_questions: int = 0,
 ) -> Match:
     """Create a new match between two users."""
@@ -35,7 +34,6 @@ async def create_match(
         user1_id=user1_id,
         user2_id=user2_id,
         group_id=group_id,
-        score=score,
         common_questions=common_questions,
     )
     

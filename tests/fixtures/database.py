@@ -75,7 +75,6 @@ async def test_match(test_session, test_user, test_user2):
         user1_id=test_user.id,
         user2_id=test_user2.id,
         group_id=1,
-        score=0.85
     )
     test_session.add(match)
     await test_session.commit()
