@@ -20,7 +20,6 @@ class Group(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Group status
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_private: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Timestamps
