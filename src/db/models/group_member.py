@@ -23,7 +23,6 @@ class GroupMember(Base):
     group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(32), nullable=False, default="member")
     joined_at = Column(DateTime, nullable=False, default=func.now())
-    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
     photo_file_id = Column(String(255), nullable=True)
     nickname = Column(String(32), nullable=True)
 

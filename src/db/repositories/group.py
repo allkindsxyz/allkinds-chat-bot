@@ -183,8 +183,7 @@ class GroupRepository(BaseRepository[Group]):
                         GroupMember.group_id, 
                         GroupMember.user_id, 
                         GroupMember.role,
-                        GroupMember.joined_at, 
-                        GroupMember.updated_at
+                        GroupMember.joined_at
                     ).where(
                         GroupMember.group_id == group_id,
                         GroupMember.user_id == user_id
@@ -200,8 +199,7 @@ class GroupRepository(BaseRepository[Group]):
                             group_id=row[1],
                             user_id=row[2],
                             role=row[3],
-                            joined_at=row[4],
-                            updated_at=row[5]
+                            joined_at=row[4]
                         )
                         logger.info(f"Found basic group member: {member}")
                         return member
