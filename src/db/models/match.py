@@ -15,7 +15,6 @@ class Match(Base):
     user1_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user2_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     group_id: Mapped[int] = mapped_column(ForeignKey("groups.id"))
-    common_questions: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Relationships

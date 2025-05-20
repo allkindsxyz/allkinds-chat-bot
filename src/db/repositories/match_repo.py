@@ -185,7 +185,7 @@ async def find_matches(session: AsyncSession, user_id: int, group_id: int) -> li
                         category_scores,     # dictionary of category scores
                         category_counts      # dictionary of question counts per category
                     ))
-                    logger.debug(f"Match with user {potential_match_id}: score={cohesion_score}, questions={common_questions}")
+                    logger.debug(f"Match with user {potential_match_id}: questions={common_questions}")
             except Exception as e:
                 logger.error(f"Error calculating cohesion with user {potential_match_id}: {e}")
                 if IS_RAILWAY:

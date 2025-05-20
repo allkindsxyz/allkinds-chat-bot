@@ -179,8 +179,11 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                     await message.answer_photo(partner_photo, caption=info)
                 else:
                     await message.answer(info)
-                info2 = f"<b>Common questions:</b> {match.common_questions or 0}"
-                await message.answer(info2, parse_mode="HTML", reply_markup=get_in_chat_keyboard(partner_name))
+                await message.answer(
+                    f"Connected with {partner_name}!\n\n"
+                    "Your messages will be forwarded to your match.",
+                    reply_markup=get_in_chat_keyboard(partner_name)
+                )
                 return
             elif len(parts) == 2:
                 try:
@@ -208,7 +211,6 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                 partner_name = await get_partner_nickname(session, partner_id)
                 await message.answer(
                     f"Connected with {partner_name}!\n\n"
-                    f"Common questions: {match.common_questions or 0}\n\n"
                     "Your messages will be forwarded to your match.",
                     reply_markup=get_in_chat_keyboard(partner_name)
                 )

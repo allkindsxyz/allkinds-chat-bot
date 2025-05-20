@@ -8,7 +8,6 @@ def upgrade(conn):
             user2_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
             score FLOAT DEFAULT 0.0,
-            common_questions INTEGER DEFAULT 0,
             created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
     """))
