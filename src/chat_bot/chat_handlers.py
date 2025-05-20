@@ -166,7 +166,7 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                 if not gm1 or not gm2 or not group:
                     await message.answer("Both users must be members of the same group.")
                     return
-                chat = await find_or_create_chat(session, initiator.id, match_user.id)
+                chat = await find_or_create_chat(session, initiator.id, match_user.id, match.group_id)
                 partner = match_user if user_id == initiator_telegram_user_id else initiator
                 partner_name = gm2.nickname if user_id == initiator_telegram_user_id else gm1.nickname
                 partner_photo = gm2.photo_url if user_id == initiator_telegram_user_id else gm1.photo_url
@@ -204,7 +204,7 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                 if not partner:
                     await message.answer("Partner not found in database. They may have deleted their account.")
                     return
-                chat = await find_or_create_chat(session, user_id, partner_id)
+                chat = await find_or_create_chat(session, user_id, partner_id, match.group_id)
                 await state.set_state(ChatState.in_chat)
                 await state.update_data({
                     "chat_id": chat.id,
@@ -467,7 +467,7 @@ async def on_chat_selected(callback: CallbackQuery, state: FSMContext, session: 
             return
     else:
         # Find or create a chat between these users
-        chat = await find_or_create_chat(session, user.id, partner_id)
+        chat = await find_or_create_chat(session, user.id, partner_id, chat.group_id if hasattr(chat, 'group_id') else None)
         if not chat:
             logger.error(f"Failed to create chat between users {user.id} and {partner_id}")
             await callback.message.answer("Failed to create chat. Please try again.")
@@ -617,7 +617,7 @@ async def get_chat_by_id(session: AsyncSession, chat_id: int) -> Chat:
     return result.scalar_one_or_none()
 
 # Helper function to find or create chat
-async def find_or_create_chat(session: AsyncSession, user1_id: int, user2_id: int) -> Chat:
+async def find_or_create_chat(session: AsyncSession, user1_id: int, user2_id: int, group_id: int) -> Chat:
     """
     Find an existing chat between two users or create a new one.
     
@@ -625,6 +625,7 @@ async def find_or_create_chat(session: AsyncSession, user1_id: int, user2_id: in
         session: Database session
         user1_id: ID of the first user
         user2_id: ID of the second user
+        group_id: ID of the group
         
     Returns:
         Chat object if found or created, None otherwise
@@ -635,7 +636,7 @@ async def find_or_create_chat(session: AsyncSession, user1_id: int, user2_id: in
             ((Chat.initiator_id == user1_id) & (Chat.recipient_id == user2_id)) |
             ((Chat.initiator_id == user2_id) & (Chat.recipient_id == user1_id))
         ) & 
-        (Chat.status == "active")
+        (Chat.status == "active") & (Chat.group_id == group_id)
     )
     result = await session.execute(query)
     existing_chat = result.scalar_one_or_none()
@@ -648,6 +649,7 @@ async def find_or_create_chat(session: AsyncSession, user1_id: int, user2_id: in
         new_chat = Chat(
             initiator_id=user1_id,
             recipient_id=user2_id,
+            group_id=group_id,
             status="active"
         )
         session.add(new_chat)
