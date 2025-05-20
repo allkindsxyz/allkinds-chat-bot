@@ -22,7 +22,7 @@ class Match(Base):
     # Relationships
     user1 = relationship("User", foreign_keys=[user1_id], back_populates="matches_as_user1")
     user2 = relationship("User", foreign_keys=[user2_id], back_populates="matches_as_user2")
-    group = relationship("Group", back_populates="matches")
+    # group = relationship("Group", back_populates="matches")
     
     # Add relationship to AnonymousChatSession
     chat_sessions = relationship("AnonymousChatSession", back_populates="match") 
