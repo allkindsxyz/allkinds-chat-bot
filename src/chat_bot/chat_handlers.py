@@ -15,8 +15,8 @@ from src.db.repositories.user import user_repo
 from src.db.repositories.match_repo import get_match_between_users, get_with_users
 from src.db.repositories.chat_message_repo import chat_message_repo
 from src.db.repositories.blocked_user_repo import blocked_user_repo
-from src.db.models.group import Group
 from src.db.models.group_member import GroupMember
+from src.db.models.group import Group
 
 # Message throttling system to prevent spam
 last_message_time = {}

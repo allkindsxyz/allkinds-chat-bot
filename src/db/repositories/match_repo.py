@@ -27,14 +27,12 @@ async def create_match(
     user1_id: int,
     user2_id: int,
     group_id: int,
-    common_questions: int = 0,
 ) -> Match:
     """Create a new match between two users."""
     match = Match(
         user1_id=user1_id,
         user2_id=user2_id,
         group_id=group_id,
-        common_questions=common_questions,
     )
     
     session.add(match)

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, func, text
 from sqlalchemy.future import select as future_select
 
-from src.db.models import Group, Question
+from src.db.models.group import Group
 from src.db.models.group_member import GroupMember, MemberRole
 from src.db.repositories.base import BaseRepository
 
