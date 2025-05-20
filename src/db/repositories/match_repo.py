@@ -15,6 +15,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from src.core.config import get_settings
 from src.core.diagnostics import track_db
 from src.db.utils.session_management import ensure_active_session, with_retry
+from src.db.models.group_member import GroupMember
 
 # Get settings for constants
 settings = get_settings()
@@ -114,7 +115,6 @@ async def find_matches(session: AsyncSession, user_id: int, group_id: int) -> li
         logger.info(f"RAILWAY DB DEBUG: Session info - id={id(session)}, is_active={session.is_active}")
     
     try:
-        from src.db.models import GroupMember, User
         from src.bot.utils.matching import calculate_cohesion_scores
         
         logger.info(f"Starting find_matches for user {user_id} in group {group_id}")
