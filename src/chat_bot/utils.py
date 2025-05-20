@@ -86,7 +86,7 @@ async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
             "id": partner_id,
             "name": partner_name,
             "match_id": match.id,
-            "chat_session_id": chat_session.id if chat_session else None,
+            "chat_id": chat_session.id if chat_session else None,
             "unread_count": unread_count,
             "telegram_user_id": partner.telegram_user_id,
             "username": partner.username,

@@ -201,17 +201,17 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
             await message.answer("Failed to send your message. The recipient may have blocked the bot.")
     else:
         # This is an anonymous chat session
-        chat_session_id = data.get("chat_session_id")
+        chat_id = data.get("chat_id")
         session_id = data.get("session_id")
         match_id = data.get("match_id")
         
-        if not chat_session_id:
+        if not chat_id:
             await message.answer("You are not connected to anyone. Select a chat first.")
             await state.clear()
             return
         
         # Get chat session
-        chat_session = await get_chat_by_id(session, chat_session_id)
+        chat_session = await get_chat_by_id(session, chat_id)
         if not chat_session or chat_session.status != "active":
             await message.answer("This chat is no longer active.")
             await state.clear()
@@ -229,7 +229,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
         # Save message to database
         new_message = await chat_message_repo.create_message(
             session,
-            chat_session_id=chat_session.id,
+            chat_id=chat_id,
             sender_id=user.id,
             content_type="text",
             text_content=message.text
@@ -284,7 +284,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
                 storage=state.storage,
                 recipient_telegram_user_id=partner.telegram_user_id,
                 sender_name=sender_name,
-                chat_id=chat_session.id,
+                chat_id=chat_id,
                 partner_id=user.id,
                 is_group_chat=False,
                 session_id=session_id,

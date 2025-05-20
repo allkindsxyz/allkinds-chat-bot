@@ -163,7 +163,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
     # Save message to database
     new_message = await chat_message_repo.create_message(
         session,
-        chat_session_id=chat.id,
+        chat_id=chat_id,
         sender_id=user.id,
         content_type="text",
         text_content=message.text
@@ -279,7 +279,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
     # Save message to database
     new_message = await chat_message_repo.create_message(
         session,
-        chat_session_id=chat.id,
+        chat_id=chat_id,
         sender_id=user.id,
         content_type="photo",
         text_content=caption,
@@ -346,7 +346,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
     # Save message to database
     new_message = await chat_message_repo.create_message(
         session,
-        chat_session_id=chat.id,
+        chat_id=chat_id,
         sender_id=user.id,
         content_type="document",
         text_content=caption,
@@ -412,7 +412,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
     # Save message to database
     new_message = await chat_message_repo.create_message(
         session,
-        chat_session_id=chat.id,
+        chat_id=chat_id,
         sender_id=user.id,
         content_type="sticker",
         file_id=sticker.file_id
@@ -476,7 +476,7 @@ async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, ses
     # Save message to database
     new_message = await chat_message_repo.create_message(
         session,
-        chat_session_id=chat.id,
+        chat_id=chat_id,
         sender_id=user.id,
         content_type="voice",
         file_id=voice.file_id
@@ -638,7 +638,7 @@ async def on_connect_directly(query: types.CallbackQuery, state: FSMContext, bot
                 if chat_id:
                     new_message = await chat_message_repo.create_message(
                         session,
-                        chat_session_id=chat_id,
+                        chat_id=chat_id,
                         sender_id=user_a.id,
                         content_type="text",
                         text_content=user_info_message

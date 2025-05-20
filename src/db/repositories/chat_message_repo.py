@@ -14,7 +14,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
     async def create_message(
         self,
         session: AsyncSession,
-        chat_session_id: int,
+        chat_id: int,
         sender_id: int,
         content_type: str,
         text_content: str = None,
@@ -25,7 +25,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         
         Args:
             session: Database session
-            chat_session_id: ID of the chat session
+            chat_id: ID of the chat session
             sender_id: ID of the message sender
             content_type: Type of content (text, photo, sticker, etc.)
             text_content: Text content of the message (for text messages)
@@ -37,7 +37,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         message = await self.create(
             session,
             data={
-                "chat_session_id": chat_session_id,
+                "chat_id": chat_id,
                 "sender_id": sender_id,
                 "content_type": content_type,
                 "text_content": text_content,
@@ -53,7 +53,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
     async def get_chat_messages(
         self,
         session: AsyncSession,
-        chat_session_id: int,
+        chat_id: int,
         limit: int = 50,
         offset: int = 0,
     ) -> list[ChatMessage]:
@@ -62,7 +62,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         
         Args:
             session: Database session
-            chat_session_id: ID of the chat session
+            chat_id: ID of the chat session
             limit: Maximum number of messages to return
             offset: Number of messages to skip (for pagination)
             
@@ -71,7 +71,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         """
         query = (
             select(ChatMessage)
-            .where(ChatMessage.chat_session_id == chat_session_id)
+            .where(ChatMessage.chat_id == chat_id)
             .order_by(ChatMessage.created_at.desc())
             .limit(limit)
             .offset(offset)
@@ -82,7 +82,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
     async def mark_messages_as_read(
         self,
         session: AsyncSession,
-        chat_session_id: int,
+        chat_id: int,
         user_id: int,
     ) -> int:
         """
@@ -90,7 +90,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         
         Args:
             session: Database session
-            chat_session_id: ID of the chat session
+            chat_id: ID of the chat session
             user_id: ID of the user reading the messages
             
         Returns:
@@ -100,7 +100,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         query = (
             update(ChatMessage)
             .where(
-                (ChatMessage.chat_session_id == chat_session_id) &
+                (ChatMessage.chat_id == chat_id) &
                 (ChatMessage.sender_id != user_id) &
                 (ChatMessage.is_read == False)
             )
@@ -114,7 +114,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
     async def count_unread_messages(
         self,
         session: AsyncSession,
-        chat_session_id: int,
+        chat_id: int,
         user_id: int,
     ) -> int:
         """
@@ -122,7 +122,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         
         Args:
             session: Database session
-            chat_session_id: ID of the chat session
+            chat_id: ID of the chat session
             user_id: ID of the user
             
         Returns:
@@ -131,7 +131,7 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
         query = (
             select(func.count())
             .where(
-                (ChatMessage.chat_session_id == chat_session_id) &
+                (ChatMessage.chat_id == chat_id) &
                 (ChatMessage.sender_id != user_id) &
                 (ChatMessage.is_read == False)
             )
@@ -142,19 +142,19 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
     async def delete_messages_for_chat(
         self,
         session: AsyncSession,
-        chat_session_id: int,
+        chat_id: int,
     ) -> int:
         """
         Delete all messages for a chat session.
         
         Args:
             session: Database session
-            chat_session_id: ID of the chat session
+            chat_id: ID of the chat session
             
         Returns:
             Number of deleted messages
         """
-        query = select(ChatMessage).where(ChatMessage.chat_session_id == chat_session_id)
+        query = select(ChatMessage).where(ChatMessage.chat_id == chat_id)
         result = await session.execute(query)
         messages = result.scalars().all()
         
@@ -167,21 +167,21 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
     async def count_chat_messages(
         self,
         session: AsyncSession,
-        chat_session_id: int,
+        chat_id: int,
     ) -> int:
         """
         Count total number of messages in a chat session.
         
         Args:
             session: Database session
-            chat_session_id: ID of the chat session
+            chat_id: ID of the chat session
             
         Returns:
             Number of messages
         """
         query = (
             select(func.count())
-            .where(ChatMessage.chat_session_id == chat_session_id)
+            .where(ChatMessage.chat_id == chat_id)
         )
         result = await session.execute(query)
         return result.scalar_one() or 0
@@ -189,21 +189,21 @@ class ChatMessageRepository(BaseRepository[ChatMessage]):
     async def get_latest_message(
         self,
         session: AsyncSession,
-        chat_session_id: int,
+        chat_id: int,
     ) -> ChatMessage:
         """
         Get the latest message from a chat session.
         
         Args:
             session: Database session
-            chat_session_id: ID of the chat session
+            chat_id: ID of the chat session
             
         Returns:
             The latest message or None if no messages exist
         """
         query = (
             select(ChatMessage)
-            .where(ChatMessage.chat_session_id == chat_session_id)
+            .where(ChatMessage.chat_id == chat_id)
             .order_by(ChatMessage.created_at.desc())
             .limit(1)
         )

@@ -89,7 +89,7 @@ async def get_unread_message_count(session: AsyncSession, chat_id: int, user_id:
     """
     query = select(ChatMessage).where(
         and_(
-            ChatMessage.chat_session_id == chat_id,
+            ChatMessage.chat_id == chat_id,
             ChatMessage.sender_id != user_id,
             ChatMessage.is_read == False
         )
@@ -137,7 +137,7 @@ async def get_unread_messages(session: AsyncSession, chat_id: int, user_id: int)
     """
     query = select(ChatMessage).where(
         and_(
-            ChatMessage.chat_session_id == chat_id,
+            ChatMessage.chat_id == chat_id,
             ChatMessage.sender_id != user_id,
             ChatMessage.is_read == False
         )
