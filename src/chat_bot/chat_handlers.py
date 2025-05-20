@@ -143,6 +143,8 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                     return
                 initiator = await user_repo.get_by_telegram_user_id(session, initiator_telegram_user_id)
                 match_user = await user_repo.get_by_telegram_user_id(session, match_telegram_user_id)
+                logger.info(f"Looking for users: initiator_telegram_user_id={initiator_telegram_user_id}, match_telegram_user_id={match_telegram_user_id}")
+                logger.info(f"Found: initiator={initiator}, match_user={match_user}")
                 if not initiator or not match_user:
                     await message.answer("One of the users is not registered in the system.")
                     return
