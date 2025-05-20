@@ -48,7 +48,7 @@ router = Router()
 @router.message(F.text == "⚙️ Manage users")
 async def show_user_management(message: Message, state: FSMContext, session: AsyncSession):
     """Display list of users to manage."""
-    user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, message.from_user.id)
     if not user:
         await message.answer("You need to register in the main bot first.")
         return
@@ -95,7 +95,7 @@ async def on_manage_user_selected(callback: CallbackQuery, state: FSMContext, se
     """Handle selecting a user to manage."""
     await callback.answer()
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return
@@ -122,7 +122,7 @@ async def on_show_username(callback: CallbackQuery, state: FSMContext, session: 
     """Reveal the username of a chat partner."""
     await callback.answer()
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return
@@ -148,16 +148,16 @@ async def on_show_username(callback: CallbackQuery, state: FSMContext, session: 
     )
     
     # Notify the partner
-    partner_tg_id = partner.telegram_id
-    if partner_tg_id:
+    partner_tg_user_id = partner.telegram_user_id
+    if partner_tg_user_id:
         try:
             bot = callback.bot
             await bot.send_message(
-                partner_tg_id,
+                partner_tg_user_id,
                 f"Your Telegram username was viewed."
             )
         except Exception as e:
-            logger.error(f"Failed to notify user {partner_tg_id}: {e}")
+            logger.error(f"Failed to notify user {partner_tg_user_id}: {e}")
 
 
 # Delete match confirmation request
@@ -212,7 +212,7 @@ async def on_confirm_delete(callback: CallbackQuery, state: FSMContext, session:
     """Handle confirmation to delete a match."""
     await callback.answer()
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return
@@ -250,15 +250,15 @@ async def on_confirm_delete(callback: CallbackQuery, state: FSMContext, session:
     )
     
     # Notify partner
-    partner_tg_id = partner.telegram_id
-    if partner_tg_id:
+    partner_tg_user_id = partner.telegram_user_id
+    if partner_tg_user_id:
         try:
             await bot.send_message(
-                partner_tg_id,
+                partner_tg_user_id,
                 f"{user.first_name} has ended your match."
             )
         except Exception as e:
-            logger.error(f"Failed to notify user {partner_tg_id}: {e}")
+            logger.error(f"Failed to notify user {partner_tg_user_id}: {e}")
     
     # Return to main menu
     await show_main_menu(callback.message, state, session)
@@ -270,7 +270,7 @@ async def on_confirm_block(callback: CallbackQuery, state: FSMContext, session: 
     """Handle confirmation to block a user."""
     await callback.answer()
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return
@@ -328,7 +328,7 @@ async def on_manage_page_change(callback: CallbackQuery, state: FSMContext, sess
     
     page = int(callback.data.split(":")[1])
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return

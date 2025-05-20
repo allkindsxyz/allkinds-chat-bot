@@ -9,8 +9,8 @@ class UserRepository(BaseRepository[User]):
     def __init__(self):
         super().__init__(User)
 
-    async def get_by_telegram_id(self, session: AsyncSession, telegram_id: int) -> User | None:
-        return await self.get_by_attribute(session, "telegram_id", telegram_id)
+    async def get_by_telegram_user_id(self, session: AsyncSession, telegram_user_id: int) -> User | None:
+        return await self.get_by_attribute(session, "telegram_user_id", telegram_user_id)
 
     async def get_or_create_user(
         self, session: AsyncSession, telegram_user: dict
@@ -18,7 +18,7 @@ class UserRepository(BaseRepository[User]):
         """Gets or creates a user based on Telegram user info."""
         return await self.get_or_create(
             session,
-            telegram_id=telegram_user["id"],
+            telegram_user_id=telegram_user["id"],
             defaults={
                 "username": telegram_user.get("username"),
                 "is_active": True,

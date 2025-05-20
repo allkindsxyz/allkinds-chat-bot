@@ -13,7 +13,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     # first_name: Mapped[str] = mapped_column(String(64))
     # last_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
@@ -63,4 +63,4 @@ class User(Base):
     states: Mapped[List["UserState"]] = relationship("UserState", back_populates="user")
     
     def __repr__(self) -> str:
-        return f"<User {self.id} ({self.telegram_id}): {self.first_name}>" 
+        return f"<User {self.id} ({self.telegram_user_id}): {self.first_name}>" 

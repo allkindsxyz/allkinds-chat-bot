@@ -84,7 +84,7 @@ async def reset_webhook():
     except Exception as e:
         logger.error(f"Error with direct webhook reset: {e}")
         return False
-    
+        
     # Try with aiohttp client
     try:
         logger.info("Resetting Telegram webhook using aiohttp...")
@@ -148,104 +148,75 @@ async def setup_webhook_server():
                                
         async def webhook_handler(request):
             """Handle webhook updates from Telegram."""
+            logger.info(f"[WEBHOOK] Received request from {request.remote}")
+
+            if request.content_type != 'application/json':
+                logger.warning(f"[WEBHOOK] Invalid content type: {request.content_type}")
+                return web.Response(status=415, text='Only JSON is accepted')
+
             try:
-                logger.info(f"[WEBHOOK] Received request from {request.remote}")
-                
-                if request.content_type != 'application/json':
-                    logger.warning(f"[WEBHOOK] Invalid content type: {request.content_type}")
-                    return web.Response(status=415, text='Only JSON is accepted')
-                    
+                data = await request.read()
+                logger.info(f"[WEBHOOK] Received webhook update: {len(data)} bytes")
                 try:
-                    data = await request.read()
-                    logger.info(f"[WEBHOOK] Received webhook update: {len(data)} bytes")
-                    
-                    # Log message text if available for debugging
-                    try:
-                        update_json = json.loads(data)
-                        # Log update summary instead of full JSON to avoid massive logs
-                        update_type = "unknown"
-                        if "message" in update_json:
-                            update_type = "message"
-                            if "text" in update_json["message"]:
-                                update_type = f"message with text: {update_json['message']['text']}"
-                        elif "callback_query" in update_json:
-                            update_type = "callback_query"
-                        elif "inline_query" in update_json:
-                            update_type = "inline_query"
-                            
-                        logger.info(f"[WEBHOOK] Update type: {update_type}")
-                        
-                        # Fast-path for critical commands
-                        if "message" in update_json and "text" in update_json["message"]:
-                            text = update_json["message"]["text"]
-                            logger.info(f"[WEBHOOK] Message text: {text}")
-                            user_id = update_json["message"].get("from", {}).get("id")
-                            chat_id = update_json["message"].get("chat", {}).get("id")
-                            
-                            # Apply throttling to prevent sending too many messages to the same user
-                            # But never throttle the /start command to ensure responsiveness
-                            now = datetime.now()
-                            if chat_id in last_message_time and text != "/start":
-                                last_time = last_message_time[chat_id]
-                                time_since_last = now - last_time
-                                if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
-                                    logger.info(f"[WEBHOOK] Throttling message to chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
-                                    return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
-                            
-                            # Check if we're in polling or webhook mode
-                            is_polling_mode = not os.environ.get("WEBHOOK_HOST", "")
-                            
-                            # FAST PATH: Directly handle critical commands only in webhook mode or on dispatcher failure
-                            # In polling mode, let the dispatcher handle all commands to avoid duplicates
-                            critical_command = text in ["/start", "/help", "/ping"]
-                            handled_by_direct = False
-                            
-                            # Try main processing path first (for all commands)
-                            try:
-                                # Process update with the bot
-                                update = types.Update.model_validate_json(data)
-                                await dp.feed_update(bot=bot, update=update)
-                                logger.info(f"[WEBHOOK] Successfully processed update through dispatcher")
-                                # Update last message time if we sent a message
-                                last_message_time[chat_id] = now
-                                return web.Response(text='{"ok":true}', content_type='application/json')
-                            except Exception as e:
-                                # Main processing failed, try emergency direct response for critical commands
-                                logger.error(f"[WEBHOOK] Error in main processing: {e}")
-                                import traceback
-                                logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
-                                
-                                # For critical commands, use direct handler as fallback
-                                if critical_command:
-                                    logger.info(f"[WEBHOOK] Using fallback handler for {text}")
-                                    response = await direct_command_handler(text, chat_id, user_id, update_json)
-                                    if response:
-                                        return response
-                        else:
-                            # No text command to handle as fallback, try normal processing
+                    update_json = json.loads(data)
+                    # Log update summary instead of full JSON to avoid massive logs
+                    update_type = "unknown"
+                    if "message" in update_json:
+                        update_type = "message"
+                        if "text" in update_json["message"]:
+                            update_type = f"message with text: {update_json['message']['text']}"
+                    elif "callback_query" in update_json:
+                        update_type = "callback_query"
+                    elif "inline_query" in update_json:
+                        update_type = "inline_query"
+                    logger.info(f"[WEBHOOK] Update type: {update_type}")
+
+                    # Fast-path for critical commands
+                    if "message" in update_json and "text" in update_json["message"]:
+                        text = update_json["message"]["text"]
+                        logger.info(f"[WEBHOOK] Message text: {text}")
+                        user_id = update_json["message"].get("from", {}).get("id")
+                        chat_id = update_json["message"].get("chat", {}).get("id")
+                        now = datetime.now()
+                        if chat_id in last_message_time and text != "/start":
+                            last_time = last_message_time[chat_id]
+                            time_since_last = now - last_time
+                            if time_since_last.total_seconds() < MESSAGE_THROTTLE_SECONDS:
+                                logger.info(f"[WEBHOOK] Throttling message to chat {chat_id}: sent one {time_since_last.total_seconds():.1f}s ago")
+                                return web.Response(text='{"ok":true,"throttled":true}', content_type='application/json')
+                        is_polling_mode = not os.environ.get("WEBHOOK_HOST", "")
+                        critical_command = text in ["/start", "/help", "/ping"]
+                        handled_by_direct = False
+                        try:
                             update = types.Update.model_validate_json(data)
                             await dp.feed_update(bot=bot, update=update)
-                            logger.info(f"[WEBHOOK] Successfully processed non-message update")
-                    except Exception as json_error:
-                        logger.error(f"[WEBHOOK] Error parsing JSON: {json_error}")
-                        # Try main processing anyway
+                            logger.info(f"[WEBHOOK] Successfully processed update through dispatcher")
+                            last_message_time[chat_id] = now
+                            return web.Response(text='{"ok":true}', content_type='application/json')
+                        except Exception as e:
+                            logger.error(f"[WEBHOOK] Error in main processing: {e}")
+                            import traceback
+                            logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
+                            if critical_command:
+                                logger.info(f"[WEBHOOK] Using fallback handler for {text}")
+                                response = await direct_command_handler(text, chat_id, user_id, update_json)
+                                if response:
+                                    return response
+                    else:
                         update = types.Update.model_validate_json(data)
                         await dp.feed_update(bot=bot, update=update)
-                    
-                    return web.Response(text='{"ok":true}', content_type='application/json')
-                except Exception as e:
-                    logger.error(f"[WEBHOOK] Error processing webhook update: {e}")
-                    import traceback
-                    logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
-                    return web.Response(text='{"ok":false,"error":"Internal Server Error"}', 
-                                       content_type='application/json', status=500)
-            except Exception as outer_e:
-                logger.error(f"[WEBHOOK] Outer exception in webhook handler: {outer_e}")
+                        logger.info(f"[WEBHOOK] Successfully processed non-message update")
+                except Exception as json_error:
+                    logger.error(f"[WEBHOOK] Error parsing JSON: {json_error}")
+                    update = types.Update.model_validate_json(data)
+                    await dp.feed_update(bot=bot, update=update)
+                return web.Response(text='{"ok":true}', content_type='application/json')
+            except Exception as e:
+                logger.error(f"[WEBHOOK] Error processing webhook update: {e}")
                 import traceback
-                logger.error(f"[WEBHOOK] Outer traceback: {traceback.format_exc()}")
-                return web.Response(text='{"ok":false,"error":"Internal Server Error"}', 
-                                   content_type='application/json', status=500)
-        
+                logger.error(f"[WEBHOOK] Traceback: {traceback.format_exc()}")
+                return web.Response(text='{"ok":false,"error":"Internal Server Error"}', content_type='application/json', status=500)
+
         # Helper function to handle direct commands
         async def direct_command_handler(text, chat_id, user_id, update_json):
             """Handle direct commands without going through the dispatcher."""
@@ -473,7 +444,7 @@ async def shutdown(signal_name=None):
 async def start_chat_bot(token=None, use_webhook=False, webhook_url=None) -> None:
     """Initialize and start the chat bot."""
     global bot, dp, should_exit
-    
+
     try:
         # Use token from parameter or environment
         if not token:
@@ -486,7 +457,7 @@ async def start_chat_bot(token=None, use_webhook=False, webhook_url=None) -> Non
         if not token or not token.strip() or len(token) < 20:
             logger.error(f"Invalid token format. Token length: {len(token) if token else 0}")
             raise ValueError("Invalid token format")
-            
+        
         logger.info("Initializing bot with valid token...")
 
         # Reset webhook before starting
@@ -524,7 +495,6 @@ async def start_chat_bot(token=None, use_webhook=False, webhook_url=None) -> Non
             logger.info(f"Bot verification successful: @{bot_info.username}")
         except Exception as e:
             logger.error(f"Bot verification failed: {e}")
-            
             # Log detailed error for debugging
             import traceback
             logger.error(f"Bot verification traceback: {traceback.format_exc()}")
@@ -558,12 +528,10 @@ async def start_chat_bot(token=None, use_webhook=False, webhook_url=None) -> Non
                 if use_webhook:
                     logger.info("Falling back to webhook mode...")
                     await setup_webhook_server()
-                
     except Exception as e:
         logger.exception(f"Error starting chat bot: {e}")
         raise
     finally:
-        # Only shutdown if an exception was raised
         if sys.exc_info()[0] is not None:
             await shutdown()
 

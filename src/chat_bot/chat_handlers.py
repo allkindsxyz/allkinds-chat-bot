@@ -52,7 +52,7 @@ async def show_main_menu(message: Message, state: FSMContext, session: AsyncSess
     await state.clear()  # Clear any active state
     
     # Get user
-    user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, message.from_user.id)
     if not user:
         await message.answer("You need to register in the main bot first.")
         return
@@ -126,23 +126,23 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
             await message.answer("Invalid link format. Please use the link provided after finding a match.")
             return
         
-        # Новый формат: match_{initiator_telegram_id}_{match_telegram_id}
+        # Новый формат: match_{initiator_telegram_user_id}_{match_telegram_user_id}
         if payload.startswith("match_"):
             parts = payload.split('_')
             if len(parts) == 3:
                 try:
-                    initiator_telegram_id = int(parts[1])
-                    match_telegram_id = int(parts[2])
+                    initiator_telegram_user_id = int(parts[1])
+                    match_telegram_user_id = int(parts[2])
                 except Exception as e:
-                    logger.error(f"[DEEP_LINK] Invalid telegram_id in payload: {payload}")
+                    logger.error(f"[DEEP_LINK] Invalid telegram_user_id in payload: {payload}")
                     await message.answer("Invalid link format. Please use the link provided after finding a match.")
                     return
                 # Определяем кто инициатор (тот, кто перешёл по ссылке)
-                if user_id not in (initiator_telegram_id, match_telegram_id):
+                if user_id not in (initiator_telegram_user_id, match_telegram_user_id):
                     await message.answer("This link is not intended for you.")
                     return
-                initiator = await user_repo.get_by_telegram_id(session, initiator_telegram_id)
-                match_user = await user_repo.get_by_telegram_id(session, match_telegram_id)
+                initiator = await user_repo.get_by_telegram_user_id(session, initiator_telegram_user_id)
+                match_user = await user_repo.get_by_telegram_user_id(session, match_telegram_user_id)
                 if not initiator or not match_user:
                     await message.answer("One of the users is not registered in the system.")
                     return
@@ -163,9 +163,9 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                     await message.answer("Both users must be members of the same group.")
                     return
                 chat = await find_or_create_chat(session, initiator.id, match_user.id)
-                partner = match_user if user_id == initiator_telegram_id else initiator
-                partner_name = gm2.nickname if user_id == initiator_telegram_id else gm1.nickname
-                partner_photo = gm2.photo_file_id if user_id == initiator_telegram_id else gm1.photo_file_id
+                partner = match_user if user_id == initiator_telegram_user_id else initiator
+                partner_name = gm2.nickname if user_id == initiator_telegram_user_id else gm1.nickname
+                partner_photo = gm2.photo_file_id if user_id == initiator_telegram_user_id else gm1.photo_file_id
                 await state.set_state(ChatState.in_chat)
                 await state.update_data({
                     "chat_id": chat.id,
@@ -251,7 +251,7 @@ async def handle_start_without_link(
             return
 
         logger.info(f"[START_CMD] Looking up user {message.from_user.id} in database")
-        user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+        user = await user_repo.get_by_telegram_user_id(session, message.from_user.id)
         logger.info(f"[START_CMD] User lookup result: {user is not None}")
 
         if not user:
@@ -341,7 +341,7 @@ async def handle_start_without_link(
 @router.message(F.text == "👥 Select user to chat")
 async def show_chat_selection(message: Message, state: FSMContext, session: AsyncSession):
     """Display list of available chat partners."""
-    user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, message.from_user.id)
     if not user:
         await message.answer("You need to register in the main bot first.")
         return
@@ -434,7 +434,7 @@ async def on_chat_selected(callback: CallbackQuery, state: FSMContext, session: 
     """Handle selecting a chat partner."""
     await callback.answer()
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return
@@ -659,7 +659,7 @@ async def on_open_chat_from_notification(callback: CallbackQuery, state: FSMCont
     """Handle opening a chat from a notification."""
     await callback.answer()
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return
@@ -873,7 +873,7 @@ async def on_load_more_messages(callback: CallbackQuery, state: FSMContext, sess
 @router.message(F.text == "👥 Switch chat")
 async def handle_switch_chat(message: Message, state: FSMContext, session: AsyncSession):
     """Handle switch chat button and show available chats."""
-    user = await user_repo.get_by_telegram_id(session, message.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, message.from_user.id)
     if not user:
         await message.answer("You need to register in the main bot first.")
         return
@@ -927,7 +927,7 @@ async def handle_switch_chat(message: Message, state: FSMContext, session: Async
 async def handle_whats_next(message: Message, state: FSMContext, session: AsyncSession):
     """Handle the user clicking the "What's next with [partner]" button."""
     user_id = message.from_user.id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     
     if not user:
         await message.answer("You need to register in the main bot first.")
@@ -1053,7 +1053,7 @@ async def handle_start_text(message: Message, state: FSMContext = None, session:
                 return
 
             # Get user from database
-            user = await user_repo.get_by_telegram_id(session, user_id)
+            user = await user_repo.get_by_telegram_user_id(session, user_id)
             logger.info(f"[START_TEXT] User lookup result: {user is not None}")
             
             if not user:

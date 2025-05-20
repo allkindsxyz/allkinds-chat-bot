@@ -26,7 +26,7 @@ async def on_page_change(callback: CallbackQuery, state: FSMContext, session: As
     
     page = int(callback.data.split(":")[1])
     
-    user = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
         return

@@ -49,33 +49,27 @@ class DatabaseMiddleware(BaseMiddleware):
                             # Continue without a database session instead of raising
                             # This allows commands like /start, /help to still work even with DB issues
                             return await handler(event, data)
-                        
                         # Create session with timeout
                         async_session = async_sessionmaker(
                             engine, expire_on_commit=False, class_=AsyncSession
                         )
-                        
                         # Create session with timeout protection
                         try:
                             # Get a session factory - FIX: Don't call it as a function, just pass the factory
                             session_factory = async_session
-                            
                             # Create a real session from the factory
                             session = session_factory()
-                            
                             # Add session to the data dict
                             data["session"] = session
-                            
                             # Process handler
                             result = await handler(event, data)
-                            
                             # Close session
                             await session.close()
                             return result
-                            
                         except asyncio.TimeoutError:
                             logger.error(f"Session creation timed out after {self.session_timeout}s (attempt {attempt+1}/{self.retry_attempts})")
                             if session:
+                                await session.rollback()
                                 await session.close()
                             # Try again on timeout
                             if attempt < self.retry_attempts - 1:
@@ -84,31 +78,37 @@ class DatabaseMiddleware(BaseMiddleware):
                             else:
                                 # Fall through to handler without session on final timeout
                                 return await handler(event, data)
-                            
                     except asyncio.exceptions.CancelledError as e:
                         logger.warning(f"Database connection cancelled (attempt {attempt+1}/{self.retry_attempts}): {e}")
                         original_exc = e
+                        if session:
+                            await session.rollback()
+                            await session.close()
                         if attempt < self.retry_attempts - 1:
                             await asyncio.sleep(0.5)  # Shorter delay
                             continue
-                            
                     except SQLAlchemyError as e:
                         logger.error(f"Database error (attempt {attempt+1}/{self.retry_attempts}): {e}")
                         original_exc = e
+                        if session:
+                            await session.rollback()
+                            await session.close()
                         if attempt < self.retry_attempts - 1:
                             await asyncio.sleep(0.5)  # Shorter delay
                             continue
-                            
                     except Exception as e:
                         logger.error(f"Unexpected error in database middleware (attempt {attempt+1}/{self.retry_attempts}): {e}")
                         original_exc = e
+                        if session:
+                            await session.rollback()
+                            await session.close()
                         if attempt < self.retry_attempts - 1:
                             await asyncio.sleep(0.5)  # Shorter delay
                             continue
-                            
+
         except asyncio.TimeoutError:
             logger.error(f"Hard timeout reached for database connection: {self.session_timeout} seconds")
-            
+        
         # All retries failed - just proceed without a database session
         logger.warning(f"Database connection failed after {self.retry_attempts} retries, proceeding without session")
         
@@ -137,7 +137,7 @@ class LoggingMiddleware(BaseMiddleware):
         if user_id and session:
             try:
                 # Get user from DB
-                user = await user_repo.get_by_telegram_id(session, user_id)
+                user = await user_repo.get_by_telegram_user_id(session, user_id)
                 if user:
                     # Find active chat sessions for this user
                     from sqlalchemy import select, or_, and_

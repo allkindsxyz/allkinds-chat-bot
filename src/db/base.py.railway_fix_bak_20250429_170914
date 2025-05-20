@@ -1,0 +1,320 @@
+from sqlalchemy import MetaData
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+import os
+import urllib.parse
+from loguru import logger
+import re
+import sys
+# Check if we're in Railway
+IS_RAILWAY = os.environ.get('RAILWAY_ENVIRONMENT') is not None
+
+
+from src.core.config import get_settings
+
+settings = get_settings()
+
+# Check if we're in production 
+IS_PRODUCTION = os.environ.get("RAILWAY_ENVIRONMENT") == "production"
+
+# Prioritize Railway's DATABASE_URL environment variable
+ORIGINAL_DB_URL = os.getenv('DATABASE_URL', settings.db_url)
+logger.info(f"Original database URL type: {type(ORIGINAL_DB_URL)}")
+
+# Function to safely process database URL
+def process_database_url(url):
+    if not url:
+        # In production, never fall back to SQLite
+        if IS_PRODUCTION:
+            logger.error("No database URL provided in production environment!")
+            logger.error("DATABASE_URL environment variable must be set to a PostgreSQL URL in production.")
+            sys.exit(1)
+        else:
+            logger.warning("No database URL provided, falling back to SQLite")
+            return "sqlite+aiosqlite:///./allkinds.db"
+    
+    logger.info(f"Processing database URL (starts with): {url[:15]}...")
+    
+    # In production, enforce PostgreSQL
+    if IS_PRODUCTION and not (url.startswith('postgres://') or url.startswith('postgresql://')):
+        logger.error(f"Invalid database URL in production: {url[:15]}...")
+        logger.error("DATABASE_URL must be a PostgreSQL connection in production environment.")
+        sys.exit(1)
+    
+    # Handle SQLite explicitly
+    if url.startswith('sqlite'):
+        # In production, never use SQLite
+        if IS_PRODUCTION:
+            logger.error("SQLite database not allowed in production environment!")
+            logger.error("DATABASE_URL must be a PostgreSQL connection in production.")
+            sys.exit(1)
+        else:
+            logger.info("Using SQLite database")
+            return url
+    
+    # Parse the URL to handle parameters safely
+    try:
+        # Handle Railway's postgres:// format
+        if url.startswith('postgres://') or url.startswith('postgresql://'):
+            # For asyncpg, we need to use postgresql+asyncpg://
+            if 'asyncpg' not in url:
+                if url.startswith('postgres://'):
+                    url = url.replace('postgres://', 'postgresql+asyncpg://', 1)
+                else:
+                    url = url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+            
+            # We no longer modify hostnames as they need to remain as provided by Railway
+            logger.info(f"Processed database URL (starts with): {url[:15]}...")
+            return url
+            
+        logger.warning(f"Unrecognized database URL format: {url[:10]}...")
+        
+        # In production, don't allow unrecognized formats
+        if IS_PRODUCTION:
+            logger.error("Unrecognized database URL format in production!")
+            logger.error("DATABASE_URL must be a PostgreSQL connection in production.")
+            sys.exit(1)
+            
+        return url
+    except Exception as e:
+        logger.error(f"Error processing database URL: {e}")
+        
+        # In production, don't fall back to SQLite on errors
+        if IS_PRODUCTION:
+            logger.error("Failed to process database URL in production!")
+            logger.error("Please fix the DATABASE_URL environment variable.")
+            sys.exit(1)
+            
+        logger.info("Falling back to SQLite database")
+        return "sqlite+aiosqlite:///./allkinds.db"
+
+# Process the database URL
+SQLALCHEMY_DATABASE_URL = process_database_url(ORIGINAL_DB_URL)
+logger.info(f"Final database URL type: {type(SQLALCHEMY_DATABASE_URL)}")
+logger.info(f"Using database driver: {SQLALCHEMY_DATABASE_URL.split('://')[0]}")
+
+# Naming convention for constraints
+convention = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+metadata = MetaData(naming_convention=convention)
+
+
+class Base(DeclarativeBase):
+    """Base class for all models."""
+    metadata = metadata
+
+
+# Set connect_args based on database type
+connect_args = {
+        "command_timeout": 30,  # Command execution timeout
+        "timeout": 30,  # Increased connection timeout,
+        "statement_cache_size": 0  # Disable statement cache
+    }
+if 'postgresql' in SQLALCHEMY_DATABASE_URL or 'postgres' in SQLALCHEMY_DATABASE_URL:
+    # PostgreSQL specific connect args for asyncpg with more generous timeouts for Railway
+    connect_args = {
+        "timeout": 30,             # Increase connection timeout to 30 seconds
+        "command_timeout": 30,     # Add command timeout of 30 seconds
+        "server_settings": {
+            "application_name": "allkinds"
+        },
+        "statement_cache_size": 0  # Disable statement cache to avoid issues with long-running connections
+    }
+
+# Create async engine with enhanced parameters for better connection handling in cloud environments
+engine = create_async_engine(
+    SQLALCHEMY_DATABASE_URL,
+    echo=settings.debug,
+    future=True,
+    pool_pre_ping=True,               # Verify connections before using them
+    pool_recycle=180,                 # Recycle connections more frequently (3 minutes),                 # Recycle connections more frequently (3 minutes)
+    pool_timeout=45,                  # Increased timeout for cloud environments,                  # Increase connection timeout for cloud environments
+    pool_size=10,                     # Increased pool size for better concurrency,                     # Increase pool size for better handling of concurrent requests
+    max_overflow=20,           # Allow more overflow connections for spikes,                  # Allow more overflow connections
+    connect_args=connect_args         # Database-specific connection arguments
+)
+
+# Create async session factory
+async_session_factory = async_sessionmaker(
+    engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
+
+
+async def get_session() -> AsyncSession:
+    """Get a database session."""
+    async with async_session_factory() as session:
+        yield session
+
+def get_engine():
+    """Get the SQLAlchemy engine."""
+    return engine 
+
+def get_async_engine(*args, **kwargs):
+    """Get SQLAlchemy async engine with retry logic."""
+    import time
+    from sqlalchemy.exc import SQLAlchemyError
+    
+    # Get database URL from environment with proper error handling
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        logger.error("DATABASE_URL environment variable is not set")
+        database_url = os.environ.get("POSTGRES_URL")
+        if database_url:
+            logger.info("Using POSTGRES_URL as fallback")
+        else:
+            logger.critical("No database URL found in environment variables!")
+            if IS_RAILWAY:
+                # In production, fail fast
+                raise ValueError("DATABASE_URL environment variable is required")
+            else:
+                # In development, use SQLite as a fallback
+                logger.warning("Using SQLite as fallback for development")
+                database_url = "sqlite+aiosqlite:///./test.db"
+    
+    # Force asyncpg driver for PostgreSQL
+    if database_url.startswith('postgresql:'):
+        database_url = database_url.replace('postgresql:', 'postgresql+asyncpg:')
+        logger.info(f"Enforcing asyncpg driver with URL: {database_url[:25]}...")
+    
+    # Set connection parameters with sensible timeouts
+    connect_args = {
+        'timeout': 10,  # Connection timeout in seconds
+        'command_timeout': 10,  # Command execution timeout
+    }
+    
+    # Use a separate pool for statements, with retries
+    engine_args = {
+        'pool_size': 5,  # Start with a smaller pool
+        'max_overflow': 10,
+        'pool_timeout': 30,
+        'pool_recycle': 1800,  # Recycle connections after 30 minutes
+        'pool_pre_ping': True,  # Check connection viability before using
+        'connect_args': connect_args
+    }
+    
+    # Create engine with retry logic
+    max_retries = 3
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            engine = create_async_engine(
+                database_url,
+                **engine_args
+            )
+            logger.info(f"Successfully created database engine on attempt {attempt + 1}")
+            return engine
+        except SQLAlchemyError as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                logger.error(f"Failed to establish database connection after {max_retries} attempts: {e}")
+                raise
+
+async def init_models(engine):
+    """Initialize database models with proper error handling and retry logic."""
+    import time
+    import asyncio
+    from sqlalchemy.exc import SQLAlchemyError
+    from sqlalchemy import inspect, text
+    
+    logger.info("Initializing database models...")
+    metadata = Base.metadata
+    
+    max_retries = 3
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            async with engine.begin() as conn:
+                # Test connection
+                await conn.execute(text("SELECT 1"))
+                logger.info("Database connection successful")
+                
+                # Check if tables exist
+                tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
+                
+                if not tables:
+                    logger.info("No tables found. Creating database schema...")
+                    await conn.run_sync(metadata.create_all)
+                    logger.info("Database schema created.")
+                else:
+                    logger.info(f"Found existing tables: {tables}")
+            
+            logger.info("Database models initialized successfully")
+            return metadata
+            
+        except asyncio.exceptions.CancelledError as e:
+            # This is a critical issue in Railway - the connection is being cancelled
+            logger.error(f"Connection cancelled (attempt {attempt + 1}/{max_retries}): {e}")
+            
+            # Retry with adjusted timeout
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying with adjusted timeout after CancelledError...")
+                # Reduce timeout to avoid cancellation
+                engine_args['pool_timeout'] = 15
+                connect_args['timeout'] = 5
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                logger.error(f"Database initialization failed after {max_retries} attempts due to cancellation: {e}")
+                
+                # In production with cancellation errors, we might still be able to create tables
+                if IS_PRODUCTION or IS_RAILWAY:
+                    logger.warning("Attempting to continue despite cancellation in production...")
+                    try:
+                        # Try with a more direct approach
+                        async with engine.begin() as conn:
+                            await conn.run_sync(metadata.create_all)
+                        logger.info("Successfully created database tables despite connection issues")
+                        return metadata
+                    except Exception as inner_e:
+                        logger.critical(f"Final attempt to create tables failed: {inner_e}")
+                        raise  # Re-raise only after trying everything
+                else:
+                    logger.warning("Continuing without proper database initialization in development environment")
+                    return metadata
+                if IS_PRODUCTION:
+                    logger.error("Database initialization failed in production environment!")
+                    raise  # Re-raise in production
+                else:
+                    logger.warning("Continuing without proper database initialization in development environment")
+                    return metadata
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"SQLAlchemy error (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                logger.error(f"Database initialization failed after {max_retries} attempts due to SQLAlchemy error: {e}")
+                if IS_PRODUCTION:
+                    logger.error("Database initialization failed in production environment!")
+                    raise  # Re-raise in production
+                else:
+                    logger.warning("Continuing without proper database initialization in development environment")
+                    return metadata
+                    
+        except Exception as e:
+            logger.error(f"Unexpected error (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                logger.error(f"Database initialization failed after {max_retries} attempts due to: {e}")
+                if IS_PRODUCTION:
+                    logger.error("Database initialization failed in production environment!")
+                    raise  # Re-raise in production
+                else:
+                    logger.warning("Continuing without proper database initialization in development environment")
+                    return metadata 

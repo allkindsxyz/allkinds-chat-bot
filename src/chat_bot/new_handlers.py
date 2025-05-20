@@ -25,7 +25,7 @@ from .repositories import get_partner_nickname
 async def check_recipient_state(
     bot: Bot, 
     storage: BaseStorage,
-    recipient_telegram_id: int,
+    recipient_telegram_user_id: int,
     sender_name: str,
     chat_id: int,
     partner_id: int
@@ -36,7 +36,7 @@ async def check_recipient_state(
     Args:
         bot: Bot instance
         storage: FSM storage
-        recipient_telegram_id: Telegram ID of the recipient
+        recipient_telegram_user_id: Telegram User ID of the recipient
         sender_name: Name of the sender to show in notification
         chat_id: ID of the chat
         partner_id: ID of the partner (sender)
@@ -46,7 +46,7 @@ async def check_recipient_state(
     """
     try:
         # Create a key for the recipient's state
-        key = StorageKey(bot_id=bot.id, user_id=recipient_telegram_id, chat_id=recipient_telegram_id)
+        key = StorageKey(bot_id=bot.id, user_id=recipient_telegram_user_id, chat_id=recipient_telegram_user_id)
         
         # Get the recipient's state
         state = await storage.get_state(key=key)
@@ -54,7 +54,7 @@ async def check_recipient_state(
         # If they have no state or aren't in chat, send notification
         if state != ChatState.in_chat.state:
             # They're not in chat state, send notification
-            logger.info(f"Sending notification to {recipient_telegram_id} about new message from {sender_name}")
+            logger.info(f"Sending notification to {recipient_telegram_user_id} about new message from {sender_name}")
             
             # Create deep link for direct chat access
             open_chat_data = {
@@ -76,8 +76,8 @@ async def check_recipient_state(
             
             # Send notification
             await bot.send_message(
-                chat_id=recipient_telegram_id,
-                text=f"📬 New message from {sender_name}!\n\nClick below to view and respond:",
+                chat_id=recipient_telegram_user_id,
+                text=f"�� New message from {sender_name}!\n\nClick below to view and respond:",
                 reply_markup=keyboard
             )
             return True
@@ -88,7 +88,7 @@ async def check_recipient_state(
             
             if current_partner_id != partner_id:
                 # They're chatting with someone else, send notification
-                logger.info(f"User {recipient_telegram_id} is chatting with someone else, sending notification")
+                logger.info(f"User {recipient_telegram_user_id} is chatting with someone else, sending notification")
                 
                 # Create inline keyboard with button to switch chat
                 keyboard = InlineKeyboardMarkup(
@@ -104,7 +104,7 @@ async def check_recipient_state(
                 
                 # Send notification
                 await bot.send_message(
-                    chat_id=recipient_telegram_id,
+                    chat_id=recipient_telegram_user_id,
                     text=f"📬 New message from {sender_name} while you're chatting with someone else!\n\nClick below to switch to this conversation:",
                     reply_markup=keyboard
                 )
@@ -125,7 +125,7 @@ router = Router()
 async def handle_whats_next(message: Message, state: FSMContext, session: AsyncSession):
     """Handle the user clicking the What's Next buttons (both old and new formats)."""
     user_id = message.from_user.id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     
     if not user:
         await message.answer("You need to register in the main bot first.")
@@ -183,10 +183,10 @@ async def on_connect_directly(callback: CallbackQuery, state: FSMContext, sessio
         logger.info(f"Share Telegram account button clicked. Data: {callback.data}")
         
         # Get User A's information (the one who clicked the button)
-        user_a = await user_repo.get_by_telegram_id(session, callback.from_user.id)
+        user_a = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
         
         if not user_a:
-            logger.error(f"User A with telegram_id {callback.from_user.id} not found in database")
+            logger.error(f"User A with telegram_user_id {callback.from_user.id} not found in database")
             await callback.message.answer("You need to be registered to use this feature")
             return
         
@@ -207,7 +207,7 @@ async def on_connect_directly(callback: CallbackQuery, state: FSMContext, sessio
         
         # Get partner nickname from the helper function
         partner_nickname = await get_partner_nickname(session, partner.id)
-        logger.info(f"Partner found: {partner.id} (nickname: {partner_nickname}, telegram_id: {partner.telegram_id})")
+        logger.info(f"Partner found: {partner.id} (nickname: {partner_nickname}, telegram_user_id: {partner.telegram_user_id})")
         
         # Get data needed for messaging
         data = await state.get_data()
@@ -239,13 +239,13 @@ async def on_connect_directly(callback: CallbackQuery, state: FSMContext, sessio
             )
         
         # Send User A's info to User B (partner)
-        if partner.telegram_id:
+        if partner.telegram_user_id:
             try:
                 notification_message = f"Your match {user_a_nickname} has shared their contact information:\n\n{user_info_message}"
-                logger.info(f"Sending notification to partner at telegram_id {partner.telegram_id}")
+                logger.info(f"Sending notification to partner at telegram_user_id {partner.telegram_user_id}")
                 
                 sent_message = await bot.send_message(
-                    chat_id=partner.telegram_id,
+                    chat_id=partner.telegram_user_id,
                     text=notification_message,
                     parse_mode="HTML"
                 )
@@ -267,10 +267,10 @@ async def on_connect_directly(callback: CallbackQuery, state: FSMContext, sessio
                 
                 logger.info(f"User {user_a.id} shared contact information with partner {partner_id}")
             except Exception as e:
-                logger.error(f"Failed to send contact information to user {partner.telegram_id}: {e}")
+                logger.error(f"Failed to send contact information to user {partner.telegram_user_id}: {e}")
                 await callback.message.answer(f"Error sending your contact information to your match: {str(e)}")
         else:
-            logger.error(f"Partner {partner_id} has no telegram_id, cannot send notification")
+            logger.error(f"Partner {partner_id} has no telegram_user_id, cannot send notification")
             await callback.message.answer("Your match doesn't have a Telegram ID. Unable to send your contact information.")
     
     except Exception as e:
@@ -288,7 +288,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
         return
         
     user_id = message.from_user.id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     
     if not user:
         await message.answer("You need to register in the main bot first.")
@@ -318,7 +318,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_id:
+    if not partner or not partner.telegram_user_id:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -338,7 +338,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_id=partner.telegram_id,
+        recipient_telegram_user_id=partner.telegram_user_id,
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -346,7 +346,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
     
     # Forward message to partner
     await bot.send_message(
-        chat_id=partner.telegram_id,
+        chat_id=partner.telegram_user_id,
         text=message.text
     )
 
@@ -355,7 +355,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
 async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, session: AsyncSession):
     """Relay photo messages between paired users."""
     user_id = message.from_user.id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     
     if not user:
         await message.answer("You need to register in the main bot first.")
@@ -379,7 +379,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_id:
+    if not partner or not partner.telegram_user_id:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -404,7 +404,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_id=partner.telegram_id,
+        recipient_telegram_user_id=partner.telegram_user_id,
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -412,7 +412,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Forward photo to partner
     await bot.send_photo(
-        chat_id=partner.telegram_id,
+        chat_id=partner.telegram_user_id,
         photo=photo.file_id,
         caption=caption
     )
@@ -422,7 +422,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
 async def relay_document_message(message: Message, state: FSMContext, bot: Bot, session: AsyncSession):
     """Relay document messages between paired users."""
     user_id = message.from_user.id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     
     if not user:
         await message.answer("You need to register in the main bot first.")
@@ -446,7 +446,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_id:
+    if not partner or not partner.telegram_user_id:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -471,7 +471,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_id=partner.telegram_id,
+        recipient_telegram_user_id=partner.telegram_user_id,
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -479,7 +479,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
     
     # Forward document to partner
     await bot.send_document(
-        chat_id=partner.telegram_id,
+        chat_id=partner.telegram_user_id,
         document=document.file_id,
         caption=caption
     )
@@ -489,7 +489,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
 async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, session: AsyncSession):
     """Relay sticker messages between paired users."""
     user_id = message.from_user.id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     
     if not user:
         await message.answer("You need to register in the main bot first.")
@@ -513,7 +513,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_id:
+    if not partner or not partner.telegram_user_id:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -536,7 +536,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_id=partner.telegram_id,
+        recipient_telegram_user_id=partner.telegram_user_id,
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -544,7 +544,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
     
     # Forward sticker to partner
     await bot.send_sticker(
-        chat_id=partner.telegram_id,
+        chat_id=partner.telegram_user_id,
         sticker=sticker.file_id
     )
 
@@ -553,7 +553,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
 async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, session: AsyncSession):
     """Relay voice messages between paired users."""
     user_id = message.from_user.id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     
     if not user:
         await message.answer("You need to register in the main bot first.")
@@ -577,7 +577,7 @@ async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_id:
+    if not partner or not partner.telegram_user_id:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -600,7 +600,7 @@ async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, ses
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_id=partner.telegram_id,
+        recipient_telegram_user_id=partner.telegram_user_id,
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -608,6 +608,6 @@ async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Forward voice to partner
     await bot.send_voice(
-        chat_id=partner.telegram_id,
+        chat_id=partner.telegram_user_id,
         voice=voice.file_id
     )

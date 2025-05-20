@@ -22,8 +22,8 @@ async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
     Returns:
         List of dictionaries with match information
     """
-    # Make sure we have the internal user ID, not the telegram_id
-    user = await user_repo.get_by_telegram_id(session, user_id)
+    # Make sure we have the internal user ID, not the telegram_user_id
+    user = await user_repo.get_by_telegram_user_id(session, user_id)
     if not user:
         return []
     
@@ -88,7 +88,7 @@ async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
             "match_id": match.id,
             "chat_session_id": chat_session.id if chat_session else None,
             "unread_count": unread_count,
-            "telegram_id": partner.telegram_id,
+            "telegram_user_id": partner.telegram_user_id,
             "username": partner.username,
         })
     
