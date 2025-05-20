@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.repositories.user import user_repo
 from src.db.repositories.match_repo import get_match_between_users
-from src.db.repositories.chat_session_repo import update_status
 from src.db.repositories.chat_message_repo import chat_message_repo
 from src.db.repositories.blocked_user_repo import blocked_user_repo
 
@@ -235,7 +234,7 @@ async def on_confirm_delete(callback: CallbackQuery, state: FSMContext, session:
     
     if chat_session:
         # End the chat session
-        await update_status(session, chat_session.id, "ended", set_ended=True)
+        await end_chat_session(session, chat_session.id)
         
         # Delete chat messages
         await chat_message_repo.delete_messages_for_chat(session, chat_session.id)
@@ -294,7 +293,7 @@ async def on_confirm_block(callback: CallbackQuery, state: FSMContext, session: 
         
         if chat_session:
             # End the chat session
-            await update_status(session, chat_session.id, "ended", set_ended=True)
+            await end_chat_session(session, chat_session.id)
             
             # Delete chat messages
             await chat_message_repo.delete_messages_for_chat(session, chat_session.id)

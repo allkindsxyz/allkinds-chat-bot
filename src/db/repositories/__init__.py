@@ -12,9 +12,5 @@ __all__ = [
     "get_with_users",
     "get_matches_for_user",
     "get_match_between_users",
-    "create_chat_session",
-    "get_by_session_id",
-    "get_by_match_id",
-    "update_status",
     "get_chat_by_participants"
 ] 

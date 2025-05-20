@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from src.db.repositories.chat_message_repo import chat_message_repo
-from src.db.repositories.chat_session_repo import update_status
 
 
 async def delete_all_chats(session: AsyncSession) -> int:

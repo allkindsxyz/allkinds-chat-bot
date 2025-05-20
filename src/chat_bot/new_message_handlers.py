@@ -12,7 +12,6 @@ from datetime import datetime
 
 from src.db.models import AnonymousChatSession, Chat
 from src.db.repositories.user import user_repo
-from src.db.repositories.chat_session_repo import get_by_session_id
 from src.db.repositories.chat_message_repo import chat_message_repo
 from src.chat_bot.chat_handlers import get_chat_by_id
 
@@ -212,7 +211,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
             return
         
         # Get chat session
-        chat_session = await get_by_session_id(session, session_id)
+        chat_session = await get_chat_by_id(session, chat_session_id)
         if not chat_session or chat_session.status != "active":
             await message.answer("This chat is no longer active.")
             await state.clear()

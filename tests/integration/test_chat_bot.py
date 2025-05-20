@@ -12,7 +12,6 @@ async def test_chat_session_creation(
     test_match
 ):
     """Test that a chat session can be created between matched users."""
-    from src.db.repositories.chat_session_repo import create_chat_session
     
     # Create a chat session
     chat_session = await create_chat_session(test_session, test_match.id)
