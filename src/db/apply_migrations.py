@@ -36,7 +36,8 @@ async def apply_migration(migration_path, migration_name):
     spec.loader.exec_module(module)
     async with engine.begin() as conn:
         if hasattr(module, "upgrade"):
-            await asyncio.get_event_loop().run_in_executor(None, lambda: module.upgrade(conn.sync_connection()))
+            sync_conn = conn.sync_connection
+            await asyncio.get_event_loop().run_in_executor(None, lambda: module.upgrade(sync_conn))
         await conn.execute(text("INSERT INTO applied_migrations (name) VALUES (:name)"), {"name": migration_name})
         print(f"Applied migration: {migration_name}")
 
