@@ -13,13 +13,13 @@ MIGRATIONS = [
     "m2024_02_add_group_id_to_matches",
     "m2024_07_chatbot_core_tables",
     "m2024_03_add_updated_at_to_chats",
-    "m2024_08_add_telegram_id_to_users",
     "m2024_09_add_username_to_users",
     "m2024_11_add_is_active_to_users",
     "m2024_12_add_is_admin_to_users",
     "m2024_13_add_points_to_users",
     "m2024_14_add_updated_at_to_users",
-    "m2024_15_add_bio_to_users"
+    "m2024_15_add_bio_to_users",
+    "m2024_99_safe_schema_sync",
 ]
 
 def run_migrations():
