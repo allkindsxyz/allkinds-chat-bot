@@ -38,4 +38,22 @@ def run_migrations():
             raise
 
 if __name__ == "__main__":
-    run_migrations() 
+    try:
+        run_migrations()
+    except Exception as e:
+        print(f"Standard migration sequence failed: {e}")
+        print("Attempting to run safe schema sync migration directly...")
+        # Явно вызываем safe schema sync миграцию, даже если были ошибки выше
+        from sqlalchemy import create_engine
+        DATABASE_URL = os.environ.get("DATABASE_URL")
+        sync_db_url = DATABASE_URL.replace('postgresql+asyncpg', 'postgresql')
+        engine = create_engine(sync_db_url)
+        with engine.connect() as conn:
+            import importlib.util
+            import os
+            path = os.path.join(os.path.dirname(__file__), "m2024_99_safe_schema_sync.py")
+            spec = importlib.util.spec_from_file_location("m2024_99_safe_schema_sync", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            mod.upgrade(conn)
+        print("Safe schema sync migration applied.") 
