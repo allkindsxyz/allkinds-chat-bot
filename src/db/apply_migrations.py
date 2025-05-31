@@ -45,10 +45,23 @@ def main():
     ensure_migrations_table()
     applied = get_applied_migrations()
     all_migrations = sorted(f for f in os.listdir(MIGRATIONS_PATH) if f.endswith(".py") and not f.startswith("__"))
-    for mig in all_migrations:
-        if mig not in applied:
-            path = os.path.join(MIGRATIONS_PATH, mig)
-            apply_migration(path, mig)
+    try:
+        for mig in all_migrations:
+            if mig not in applied:
+                path = os.path.join(MIGRATIONS_PATH, mig)
+                apply_migration(path, mig)
+    except Exception as e:
+        print(f"[CRITICAL] Failed to apply migrations: {e}")
+        print("[CRITICAL] Attempting to run safe schema sync migration directly...")
+        # Явно вызываем safe schema sync миграцию, даже если были ошибки выше
+        safe_mig = "m2024_99_safe_schema_sync.py"
+        safe_path = os.path.join(MIGRATIONS_PATH, safe_mig)
+        spec = importlib.util.spec_from_file_location("m2024_99_safe_schema_sync", safe_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        with engine.begin() as conn:
+            mod.upgrade(conn)
+        print("[CRITICAL] Safe schema sync migration applied.")
 
 if __name__ == "__main__":
     main() 
