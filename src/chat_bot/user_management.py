@@ -147,7 +147,7 @@ async def on_show_username(callback: CallbackQuery, state: FSMContext, session: 
     )
     
     # Notify the partner
-    partner_tg_user_id = partner.telegram_user_id
+    partner_tg_user_id = await user_repo.get_telegram_user_id_by_id(partner.id)
     if partner_tg_user_id:
         try:
             bot = callback.bot
@@ -249,7 +249,7 @@ async def on_confirm_delete(callback: CallbackQuery, state: FSMContext, session:
     )
     
     # Notify partner
-    partner_tg_user_id = partner.telegram_user_id
+    partner_tg_user_id = await user_repo.get_telegram_user_id_by_id(partner.id)
     if partner_tg_user_id:
         try:
             await bot.send_message(

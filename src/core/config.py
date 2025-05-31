@@ -5,6 +5,7 @@ from typing import List, Optional, Union, Any
 from loguru import logger
 from pydantic_settings import BaseSettings
 from pydantic import field_validator, Field
+import redis.asyncio as aioredis
 
 
 class Settings(BaseSettings):
@@ -103,3 +104,10 @@ def get_settings() -> Settings:
     """Get application settings singleton."""
     # Clear cache if needed for testing: get_settings.cache_clear()
     return Settings() 
+
+def get_redis_client() -> aioredis.Redis:
+    settings = get_settings()
+    redis_url = settings.REDIS_URL
+    if not redis_url:
+        raise RuntimeError("REDIS_URL is not set in environment/config")
+    return aioredis.from_url(redis_url, decode_responses=True) 

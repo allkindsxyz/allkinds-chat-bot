@@ -169,7 +169,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
             
         # No need to save message for group chat, just forward it
         partner = await user_repo.get(session, partner_id)
-        if not partner or not partner.telegram_user_id:
+        if not partner:
             await message.answer("Cannot find your chat partner. They may have left.")
             return
         
@@ -182,7 +182,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
             sent_notification = await check_recipient_state(
                 bot=bot,
                 storage=state.storage,
-                recipient_telegram_user_id=partner.telegram_user_id,
+                recipient_telegram_user_id=await user_repo.get_telegram_user_id_by_id(partner.id),
                 sender_name=sender_name,
                 chat_id=chat_id,
                 partner_id=user.id,
@@ -192,7 +192,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
             
             # Always send the message even if notification was sent
             await bot.send_message(
-                chat_id=partner.telegram_user_id,
+                chat_id=await user_repo.get_telegram_user_id_by_id(partner.id),
                 text=message.text
             )
             
@@ -219,7 +219,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
         
         # Get partner
         partner = await user_repo.get(session, partner_id)
-        if not partner or not partner.telegram_user_id:
+        if not partner:
             await message.answer("Cannot find your chat partner. They may have left.")
             return
         
@@ -282,7 +282,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
             sent_notification = await check_recipient_state(
                 bot=bot,
                 storage=state.storage,
-                recipient_telegram_user_id=partner.telegram_user_id,
+                recipient_telegram_user_id=await user_repo.get_telegram_user_id_by_id(partner.id),
                 sender_name=sender_name,
                 chat_id=chat_id,
                 partner_id=user.id,
@@ -293,7 +293,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
             
             if not sent_notification:
                 # They're already in chat with this user, update their chat history too
-                partner_state_key = StorageKey(bot_id=bot.id, user_id=partner.telegram_user_id, chat_id=partner.telegram_user_id)
+                partner_state_key = StorageKey(bot_id=bot.id, user_id=await user_repo.get_telegram_user_id_by_id(partner.id), chat_id=await user_repo.get_telegram_user_id_by_id(partner.id))
                 partner_data = await state.storage.get_data(key=partner_state_key)
                 partner_history_id = partner_data.get("history_message_id")
                 
@@ -306,7 +306,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
                         # Get current history message
                         try:
                             partner_history = await bot.get_message(
-                                chat_id=partner.telegram_user_id, 
+                                chat_id=await user_repo.get_telegram_user_id_by_id(partner.id), 
                                 message_id=partner_history_id
                             )
                             
@@ -324,7 +324,7 @@ async def relay_message(message: Message, state: FSMContext, bot: Bot, session: 
                                     current_content = current_text[title_end + 2:]
                                     new_content = partner_formatted_msg + current_content
                                     await bot.edit_message_text(
-                                        chat_id=partner.telegram_user_id,
+                                        chat_id=await user_repo.get_telegram_user_id_by_id(partner.id),
                                         message_id=partner_history_id,
                                         text=title + new_content,
                                         parse_mode="HTML",

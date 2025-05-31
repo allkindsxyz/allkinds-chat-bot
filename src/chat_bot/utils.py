@@ -88,7 +88,7 @@ async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
             "match_id": match.id,
             "chat_id": chat_session.id if chat_session else None,
             "unread_count": unread_count,
-            "telegram_user_id": partner.telegram_user_id,
+            "telegram_user_id": await user_repo.get_telegram_user_id_by_id(partner.id),
             "username": partner.username,
         })
     

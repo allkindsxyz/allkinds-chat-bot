@@ -318,7 +318,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_user_id:
+    if not partner:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -338,7 +338,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_user_id=partner.telegram_user_id,
+        recipient_telegram_user_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -346,7 +346,7 @@ async def relay_text_message(message: Message, state: FSMContext, bot: Bot, sess
     
     # Forward message to partner
     await bot.send_message(
-        chat_id=partner.telegram_user_id,
+        chat_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         text=message.text
     )
 
@@ -379,7 +379,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_user_id:
+    if not partner:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -404,7 +404,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_user_id=partner.telegram_user_id,
+        recipient_telegram_user_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -412,7 +412,7 @@ async def relay_photo_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Forward photo to partner
     await bot.send_photo(
-        chat_id=partner.telegram_user_id,
+        chat_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         photo=photo.file_id,
         caption=caption
     )
@@ -446,7 +446,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_user_id:
+    if not partner:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -471,7 +471,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_user_id=partner.telegram_user_id,
+        recipient_telegram_user_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -479,7 +479,7 @@ async def relay_document_message(message: Message, state: FSMContext, bot: Bot, 
     
     # Forward document to partner
     await bot.send_document(
-        chat_id=partner.telegram_user_id,
+        chat_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         document=document.file_id,
         caption=caption
     )
@@ -513,7 +513,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_user_id:
+    if not partner:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -536,7 +536,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_user_id=partner.telegram_user_id,
+        recipient_telegram_user_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -544,7 +544,7 @@ async def relay_sticker_message(message: Message, state: FSMContext, bot: Bot, s
     
     # Forward sticker to partner
     await bot.send_sticker(
-        chat_id=partner.telegram_user_id,
+        chat_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         sticker=sticker.file_id
     )
 
@@ -577,7 +577,7 @@ async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Get partner
     partner = await user_repo.get(session, partner_id)
-    if not partner or not partner.telegram_user_id:
+    if not partner:
         await message.answer("Cannot find your chat partner. They may have left.")
         return
     
@@ -600,7 +600,7 @@ async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, ses
     sent_notification = await check_recipient_state(
         bot=bot,
         storage=state.storage,
-        recipient_telegram_user_id=partner.telegram_user_id,
+        recipient_telegram_user_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         sender_name=sender_name,
         chat_id=chat_id,
         partner_id=user.id
@@ -608,6 +608,6 @@ async def relay_voice_message(message: Message, state: FSMContext, bot: Bot, ses
     
     # Forward voice to partner
     await bot.send_voice(
-        chat_id=partner.telegram_user_id,
+        chat_id=await user_repo.get_telegram_user_id_by_id(partner.id),
         voice=voice.file_id
     )
