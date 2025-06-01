@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models import User
 from src.db.repositories.base import BaseRepository
 from src.core.config import get_redis_client
+from loguru import logger
 
 
 class UserRepository(BaseRepository[User]):
@@ -13,6 +14,7 @@ class UserRepository(BaseRepository[User]):
     async def get_id_by_telegram_user_id(self, telegram_user_id: int) -> int | None:
         redis = get_redis_client()
         user_id = await redis.get(f"user:id:{telegram_user_id}")
+        logger.info(f"[DEBUG][user_repo] Redis lookup: user:id:{telegram_user_id} -> {user_id}")
         return int(user_id) if user_id else None
 
     async def get_telegram_user_id_by_id(self, user_id: int) -> int | None:
