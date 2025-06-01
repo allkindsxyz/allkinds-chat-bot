@@ -13,17 +13,20 @@ class UserRepository(BaseRepository[User]):
 
     async def get_id_by_telegram_user_id(self, telegram_user_id: int) -> int | None:
         redis = get_redis_client()
-        user_id = await redis.get(f"user:id:{telegram_user_id}")
-        logger.info(f"[DEBUG][user_repo] Redis lookup: user:id:{telegram_user_id} -> {user_id}")
+        user_id = await redis.get(f"tg2int:{telegram_user_id}")
+        logger.info(f"[DEBUG][user_repo] Redis lookup: tg2int:{telegram_user_id} -> {user_id}")
         return int(user_id) if user_id else None
 
     async def get_telegram_user_id_by_id(self, user_id: int) -> int | None:
         redis = get_redis_client()
-        tg_id = await redis.get(f"user:tgid:{user_id}")
+        tg_id = await redis.get(f"int2tg:{user_id}")
+        logger.info(f"[DEBUG][user_repo] Redis lookup: int2tg:{user_id} -> {tg_id}")
         return int(tg_id) if tg_id else None
 
     async def set_user_id_mapping(self, user_id: int, telegram_user_id: int) -> None:
         redis = get_redis_client()
+        await redis.set(f"tg2int:{telegram_user_id}", user_id)
+        await redis.set(f"int2tg:{user_id}", telegram_user_id)
         await redis.set(f"user:id:{telegram_user_id}", user_id)
         await redis.set(f"user:tgid:{user_id}", telegram_user_id)
 
