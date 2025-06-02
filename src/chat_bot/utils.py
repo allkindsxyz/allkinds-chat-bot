@@ -8,7 +8,6 @@ import os
 from src.db.models import User, Match, ChatMessage
 from src.db.repositories import (
     user_repo, get_chat_by_participants,
-    update_status,
     chat_message_repo, blocked_user_repo
 )
 
@@ -134,8 +133,8 @@ async def get_active_chat_session(session: AsyncSession, user_id: int, partner_i
     
     if chat_session:
         # If the chat session is not active, reactivate it
-        if chat_session.status != "active":
-            chat_session = await update_status(session, chat_session.id, "active")
+        # if chat_session.status != "active":
+        #     chat_session = await update_status(session, chat_session.id, "active")
         return chat_session
     else:
         pass  # chat_session creation removed
@@ -173,7 +172,7 @@ async def clean_inactive_chats(session: AsyncSession) -> int:
         await chat_message_repo.delete_messages_for_chat(session, chat.id)
         
         # Update status
-        await update_status(session, chat.id, "ended", set_ended=True)
+        # await update_status(session, chat.id, "ended", set_ended=True)
         count += 1
     
     logger.info(f"Cleaned up {count} inactive chat sessions")
