@@ -7,7 +7,7 @@ import os
 
 from src.db.models import User, Match, ChatMessage
 from src.db.repositories import (
-    user_repo, get_by_match_id, get_partner_id,
+    user_repo, get_chat_by_participants, get_partner_id,
     get_active_session_for_user, get_by_session_id, update_status,
     chat_message_repo, blocked_user_repo
 )
@@ -71,7 +71,7 @@ async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
             continue
         
         # Get or create chat session
-        chat_session = await get_by_match_id(session, match.id)
+        chat_session = await get_chat_by_participants(session, user.id, partner_id, match.group_id)
         if not chat_session:
             pass  # chat_session creation removed
         
@@ -130,7 +130,7 @@ async def get_active_chat_session(session: AsyncSession, user_id: int, partner_i
         return None
     
     # Check if there's an existing chat session
-    chat_session = await get_by_match_id(session, match.id)
+    chat_session = await get_chat_by_participants(session, user_id, partner_id, match.group_id)
     
     if chat_session:
         # If the chat session is not active, reactivate it
