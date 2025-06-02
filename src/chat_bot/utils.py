@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, or_
 from loguru import logger
+import yaml
+import os
 
 from src.db.models import User, Match, ChatMessage
 from src.db.repositories import (
@@ -10,6 +12,15 @@ from src.db.repositories import (
     chat_message_repo, blocked_user_repo
 )
 
+_templates_cache = None
+
+def get_text_template(key: str) -> str:
+    global _templates_cache
+    if _templates_cache is None:
+        path = os.path.join(os.path.dirname(__file__), 'static', 'text_templates.yaml')
+        with open(path, 'r', encoding='utf-8') as f:
+            _templates_cache = yaml.safe_load(f)
+    return _templates_cache.get(key, f"[No template for {key}]")
 
 async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
     """

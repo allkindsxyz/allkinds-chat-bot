@@ -4,7 +4,7 @@ Chat management functionality for the chat bot.
 from aiogram import Bot, F, Router, types
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from src.db.repositories.chat_message_repo import chat_message_repo
 from src.db.repositories.blocked_user_repo import blocked_user_repo
 from src.db.models.group_member import GroupMember
 from src.db.models.group import Group
+from src.chat_bot.utils import get_text_template
 
 # Message throttling system to prevent spam
 last_message_time = {}
@@ -174,13 +175,41 @@ async def handle_start_with_link(message: Message, state: FSMContext, bot: Bot, 
                     "chat_id": chat.id,
                     "partner_id": partner.id
                 })
-                info = f"<b>Group:</b> {group.name}\n"
-                info += f"<b>Your partner:</b> {partner_name or 'No nickname'}\n"
-                await message.answer(info)
+                # Получаем фото matched-пользователя (partner)
+                photo_sent = False
+                if hasattr(gm2 if user_id == initiator_telegram_user_id else gm1, 'photo'):
+                    partner_gm = gm2 if user_id == initiator_telegram_user_id else gm1
+                    if partner_gm.photo:
+                        try:
+                            await message.answer_photo(partner_gm.photo)
+                            photo_sent = True
+                        except Exception as e:
+                            logger.warning(f"[DEEP_LINK] Failed to send partner photo: {e}")
+                # Имя и процент совпадения
+                match_score = getattr(match, 'score', None)
+                info = f"<b>{partner_name or 'No nickname'}</b>"
+                if match_score is not None:
+                    info += f"  —  <b>{int(match_score * 100)}% совпадения</b>"
+                info += "\n"
+                # Город
+                city = None
+                if hasattr(gm2 if user_id == initiator_telegram_user_id else gm1, 'city'):
+                    user_gm = gm1 if user_id == initiator_telegram_user_id else gm2
+                    partner_gm = gm2 if user_id == initiator_telegram_user_id else gm1
+                    if user_gm.city and partner_gm.city:
+                        if user_gm.city == partner_gm.city:
+                            city = user_gm.city
+                            info += f"<i>Вы оба из {city}</i>\n"
+                        else:
+                            info += f"<i>Ваши города: {user_gm.city} и {partner_gm.city}</i>\n"
+                # Мотивационный текст
+                tip = get_text_template('first_meeting_tip')
+                info += f"\n{tip}\n"
+                await message.answer(info, parse_mode="HTML")
+                # Кнопки "What's next"
                 await message.answer(
-                    f"Connected with {partner_name}!\n\n"
-                    "Your messages will be forwarded to your match.",
-                    reply_markup=get_in_chat_keyboard(partner_name)
+                    "Что вы хотите сделать дальше?",
+                    reply_markup=get_whats_next_keyboard(partner.id)
                 )
                 return
             elif len(parts) == 2:
