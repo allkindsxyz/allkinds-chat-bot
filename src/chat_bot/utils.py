@@ -8,7 +8,7 @@ import os
 from src.db.models import User, Match, ChatMessage
 from src.db.repositories import (
     user_repo, get_chat_by_participants,
-    get_active_session_for_user, get_by_session_id, update_status,
+    update_status,
     chat_message_repo, blocked_user_repo
 )
 
