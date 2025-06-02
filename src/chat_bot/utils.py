@@ -7,7 +7,7 @@ import os
 
 from src.db.models import User, Match, ChatMessage
 from src.db.repositories import (
-    user_repo, create_chat_session, get_by_match_id, get_partner_id,
+    user_repo, get_by_match_id, get_partner_id,
     get_active_session_for_user, get_by_session_id, update_status,
     chat_message_repo, blocked_user_repo
 )
@@ -73,13 +73,7 @@ async def get_user_matches(session: AsyncSession, user_id: int) -> list[dict]:
         # Get or create chat session
         chat_session = await get_by_match_id(session, match.id)
         if not chat_session:
-            # Create a new chat session
-            chat_session = await create_chat_session(
-                session,
-                initiator_id=user.id,
-                recipient_id=partner_id,
-                match_id=match.id
-            )
+            pass  # chat_session creation removed
         
         # Count unread messages
         unread_count = 0
@@ -144,13 +138,7 @@ async def get_active_chat_session(session: AsyncSession, user_id: int, partner_i
             chat_session = await update_status(session, chat_session.id, "active")
         return chat_session
     else:
-        # Create a new chat session
-        return await create_chat_session(
-            session,
-            initiator_id=user_id,
-            recipient_id=partner_id,
-            match_id=match.id
-        )
+        pass  # chat_session creation removed
 
 
 async def clean_inactive_chats(session: AsyncSession) -> int:
