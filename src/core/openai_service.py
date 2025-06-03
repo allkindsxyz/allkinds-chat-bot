@@ -327,21 +327,11 @@ Use simple, human language. Keep it brief (max 4–5 sentences).
 
 You must use **reasoning** — do not just label things. Think through why specific answer patterns might signal shared values, or how contrasting answers might create interesting conversation. Use categories or themes if useful (e.g., "trust", "growth", "openness").
 
-Input format:
-{json.dumps({
-  'shared_questions': shared_questions,
-  'complementary_questions': complementary_questions,
-  'uniqueA': uniqueA,
-  'uniqueB': uniqueB
-}, ensure_ascii=False, indent=2)}
-
 Output format:
 1. [Intro]
 2. [Shared values — with reasoning]
 3. [Complementary differences — with reasoning]
 4. [1–2 natural conversation starters]
-
-Respond in the user's language: {user_locale}
 """
     messages = [
         {"role": "system", "content": "You are a thoughtful matching assistant that helps people connect meaningfully based on their answers to deep, value-based questions."},
