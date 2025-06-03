@@ -278,6 +278,10 @@ def get_whats_next_keyboard(user_id: int) -> types.InlineKeyboardMarkup:
         text="💬 Keep Chatting",
         callback_data=f"next_keep_chatting:{user_id}"
     ))
+    builder.row(types.InlineKeyboardButton(
+        text="🤖 AI Analysis",
+        callback_data=f"ai_analysis:{user_id}"
+    ))
     
     builder.row(types.InlineKeyboardButton(
         text="👤 Share my Telegram account",

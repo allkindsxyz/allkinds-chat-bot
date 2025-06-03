@@ -1241,3 +1241,43 @@ async def handle_ping(message: Message, state: FSMContext = None, session: Async
             last_message_time[message.chat.id] = datetime.now()
         except Exception as inner_e:
             logger.error(f"[PING] Even basic response failed: {inner_e}") 
+
+@router.callback_query(F.data.startswith("ai_analysis:"))
+async def on_ai_analysis(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    """Handle AI Analysis button: анализирует совместимость и отправляет summary пользователю."""
+    await callback.answer("AI анализ...", show_alert=False)
+    user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
+    if not user:
+        await callback.message.answer("You need to register in the main bot first.")
+        return
+    # Получаем partner_id и chat_id из state
+    state_data = await state.get_data()
+    partner_id = state_data.get("partner_id")
+    chat_id = state_data.get("chat_id")
+    if not partner_id or not chat_id:
+        await callback.message.answer("No active chat found. Please select a chat first.")
+        return
+    # Получаем чат для group_id
+    chat = await get_chat_by_id(session, chat_id)
+    if not chat:
+        await callback.message.answer("Chat not found.")
+        return
+    group_id = chat.group_id
+    # Определяем локаль пользователя (по профилю или Telegram)
+    user_locale = callback.from_user.language_code or "ru"
+    # Импортируем функцию анализа
+    from src.core.openai_service import ai_match_analysis
+    try:
+        await callback.message.answer("🤖 Анализируем ваши точки соприкосновения... Это может занять 5-10 секунд.")
+        result = await ai_match_analysis(
+            session=session,
+            user1_id=user.id,
+            user2_id=partner_id,
+            group_id=group_id,
+            user_locale=user_locale
+        )
+        await callback.message.answer(result)
+    except Exception as e:
+        import traceback
+        logger.error(f"AI analysis error: {e}\n{traceback.format_exc()}")
+        await callback.message.answer("AI анализ временно недоступен. Попробуйте позже.") 

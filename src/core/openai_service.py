@@ -259,4 +259,101 @@ async def get_text_embedding(text: str) -> List[float]:
     # return response.data[0].embedding
     return [0.0] * 1536 # Placeholder dimension 
 
+async def ai_match_analysis(
+    session,
+    user1_id: int,
+    user2_id: int,
+    group_id: int,
+    user_locale: str = "ru",
+    cache=None
+) -> str:
+    """
+    Анализирует ответы двух пользователей и выдает summary: что объединяет, где могут дополнить друг друга, общие категории, различия.
+    Использует тексты вопросов и новую структуру промпта.
+    """
+    import json
+    from src.db.repositories.answer import answer_repo
+    from src.db.repositories.question import question_repo
+    from src.db.models import Answer, Question
+
+    # Получаем ответы обоих пользователей
+    answers1 = await answer_repo.get_user_answers_for_group(session, user1_id, group_id)
+    answers2 = await answer_repo.get_user_answers_for_group(session, user2_id, group_id)
+    # Получаем все вопросы по id
+    qids = list(set([a.question_id for a in answers1] + [a.question_id for a in answers2]))
+    questions = await question_repo.get_questions_by_ids(session, qids)
+    qmap = {q.id: q for q in questions}
+
+    # Сопоставляем ответы по question_id
+    a1_map = {a.question_id: a for a in answers1}
+    a2_map = {a.question_id: a for a in answers2}
+
+    shared_questions = []
+    complementary_questions = []
+    uniqueA = []
+    uniqueB = []
+
+    for qid in qids:
+        a1 = a1_map.get(qid)
+        a2 = a2_map.get(qid)
+        if not a1 or not a2:
+            if a1 and not a2:
+                uniqueA.append(qmap[qid].text)
+            elif a2 and not a1:
+                uniqueB.append(qmap[qid].text)
+            continue
+        # Совпадение: значения равны или отличаются не более чем на 1
+        if abs(a1.value - a2.value) <= 1:
+            shared_questions.append(qmap[qid].text)
+        # Дополнение: значения противоположны (например, -2 и 2, -1 и 1)
+        elif (a1.value * a2.value < 0) and (abs(a1.value) == abs(a2.value)):
+            complementary_questions.append(qmap[qid].text)
+        # Сильное различие (но не строго противоположные): можно добавить в uniqueA/uniqueB
+        else:
+            if abs(a1.value) > abs(a2.value):
+                uniqueA.append(qmap[qid].text)
+            else:
+                uniqueB.append(qmap[qid].text)
+
+    # Формируем промпт
+    prompt = f"""
+You are a thoughtful matching assistant that helps people connect meaningfully based on their answers to deep, value-based questions.
+
+You receive two sets of answers from two users. Each answer is a score from -2 (Strong No), -1 (No), 0 (Skipped), 1 (Yes), to 2 (Strong Yes). The answers are linked to human-centered, introspective questions.
+
+Your job is to:
+1. Find what unites these two users — shared values or worldviews.
+2. Identify areas where they might complement or learn from each other.
+3. Suggest 2-3 meaningful topics or questions they could talk about to begin an authentic conversation.
+
+Avoid vague generalizations. Make the output feel personal, warm, and specific to the values shown in their responses.
+
+Input format:
+{json.dumps({
+  'shared_questions': shared_questions,
+  'complementary_questions': complementary_questions,
+  'uniqueA': uniqueA,
+  'uniqueB': uniqueB
+}, ensure_ascii=False, indent=2)}
+
+Output format:
+- What you share
+- Where you differ (in a positive way)
+- Suggested conversation starters
+
+Respond in the user's language: {user_locale}
+"""
+    messages = [
+        {"role": "system", "content": "You are a thoughtful matching assistant that helps people connect meaningfully based on their answers to deep, value-based questions."},
+        {"role": "user", "content": prompt}
+    ]
+    response = await client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        temperature=0.5,
+        max_tokens=400
+    )
+    result = response.choices[0].message.content.strip()
+    return result
+
 # Remove the categorize_question function 
