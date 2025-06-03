@@ -29,7 +29,7 @@ class Group(Base):
     
     # Relationships
     creator = relationship("User", back_populates="created_groups", foreign_keys=[creator_user_id])
-    # questions = relationship("Question", back_populates="group", cascade="all, delete-orphan")
+    questions = relationship("Question", back_populates="group", cascade="all, delete-orphan")
     members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
     chats = relationship("Chat", back_populates="group", cascade="all, delete-orphan")
     matches = relationship("Match", back_populates="group", cascade="all, delete-orphan")
