@@ -4,7 +4,8 @@ from openai import AsyncOpenAI
 from loguru import logger
 
 from src.core.config import get_settings
-from src.db.repositories import question_repo
+from src.db.repositories.question import question_repo
+from src.db.repositories.answer import answer_repo
 
 settings = get_settings()
 
