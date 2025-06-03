@@ -58,5 +58,8 @@ class User(Base):
     # User state persistence
     states: Mapped[List["UserState"]] = relationship("UserState", back_populates="user")
     
+    # New relationship
+    questions = relationship("Question", back_populates="author", cascade="all, delete-orphan")
+    
     def __repr__(self) -> str:
         return f"<User {self.id}>" 
