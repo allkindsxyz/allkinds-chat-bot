@@ -58,6 +58,9 @@ class User(Base):
     # User state persistence
     states: Mapped[List["UserState"]] = relationship("UserState", back_populates="user")
     
+    # Ответы пользователя
+    answers = relationship("Answer", back_populates="user", cascade="all, delete-orphan")
+    
     # New relationship
     questions = relationship("Question", back_populates="author", cascade="all, delete-orphan")
     
