@@ -6,6 +6,8 @@ from src.db.models.chat import Chat
 from src.db.models.user_state import UserState
 from src.db.models.group_member import GroupMember
 from src.db.models.group import Group
+from src.db.models.question import Question
+from src.db.models.answer import Answer
 
 __all__ = [
     "User",
@@ -16,4 +18,6 @@ __all__ = [
     "UserState",
     "GroupMember",
     "Group",
+    "Question",
+    "Answer",
 ] 
