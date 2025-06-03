@@ -273,8 +273,8 @@ async def ai_match_analysis(
     Использует тексты вопросов и новую структуру промпта.
     """
     import json
-    from src.db.repositories.answer import answer_repo
     from src.db.repositories.question import question_repo
+    from src.db.repositories.answer import answer_repo
     from src.db.models import Answer, Question
 
     # Получаем ответы обоих пользователей
