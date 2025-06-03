@@ -318,16 +318,14 @@ async def ai_match_analysis(
 
     # Формируем промпт
     prompt = f"""
-You are a thoughtful matching assistant that helps people connect meaningfully based on their answers to deep, value-based questions.
+You are a friendly assistant helping two users reflect on whether they might connect in real life, based on their answers to value-based questions (scored from -2 to 2). 
 
-You receive two sets of answers from two users. Each answer is a score from -2 (Strong No), -1 (No), 0 (Skipped), 1 (Yes), to 2 (Strong Yes). The answers are linked to human-centered, introspective questions.
+Start your message like this:
+"People only really figure out if they vibe when they meet. But based on your answers, here's what might connect you — and where you might complement each other. You'll still have to find out the rest yourselves ;)"
 
-Your job is to:
-1. Find what unites these two users — shared values or worldviews.
-2. Identify areas where they might complement or learn from each other.
-3. Suggest 2-3 meaningful topics or questions they could talk about to begin an authentic conversation.
+Use simple, human language. Keep it brief (max 4–5 sentences).
 
-Avoid vague generalizations. Make the output feel personal, warm, and specific to the values shown in their responses.
+You must use **reasoning** — do not just label things. Think through why specific answer patterns might signal shared values, or how contrasting answers might create interesting conversation. Use categories or themes if useful (e.g., "trust", "growth", "openness").
 
 Input format:
 {json.dumps({
@@ -338,9 +336,10 @@ Input format:
 }, ensure_ascii=False, indent=2)}
 
 Output format:
-- What you share
-- Where you differ (in a positive way)
-- Suggested conversation starters
+1. [Intro]
+2. [Shared values — with reasoning]
+3. [Complementary differences — with reasoning]
+4. [1–2 natural conversation starters]
 
 Respond in the user's language: {user_locale}
 """
