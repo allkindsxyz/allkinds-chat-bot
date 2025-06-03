@@ -1245,7 +1245,11 @@ async def handle_ping(message: Message, state: FSMContext = None, session: Async
 @router.callback_query(F.data.startswith("ai_analysis:"))
 async def on_ai_analysis(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     """Handle AI Analysis button: анализирует совместимость и отправляет summary пользователю."""
-    await callback.answer("AI анализ...", show_alert=False)
+    # Сначала быстро подтверждаем callback, чтобы Telegram не выдал timeout
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Callback answer failed: {e}")
     user = await user_repo.get_by_telegram_user_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("You need to register in the main bot first.")
@@ -1266,7 +1270,11 @@ async def on_ai_analysis(callback: CallbackQuery, state: FSMContext, session: As
     # Определяем локаль пользователя (по профилю или Telegram)
     user_locale = callback.from_user.language_code or "ru"
     # Импортируем функцию анализа
-    from src.core.openai_service import ai_match_analysis
+    from src.core.openai_service import ai_match_analysis, settings
+    # Проверяем наличие OpenAI API KEY
+    if not getattr(settings, "openai_api_key", None):
+        await callback.message.answer("AI анализ временно недоступен: не настроен OpenAI API ключ. Обратитесь к администратору.")
+        return
     try:
         await callback.message.answer("🤖 Анализируем ваши точки соприкосновения... Это может занять 5-10 секунд.")
         result = await ai_match_analysis(
